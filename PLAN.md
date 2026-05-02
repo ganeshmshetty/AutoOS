@@ -479,9 +479,15 @@ START → planner → router → executor → logger → [router (next step) | E
 
 **`planner`**
 - Input: `user_input: str`, `workflow: Workflow | None`
-- If `workflow` is provided (replay mode), returns its steps directly
-- If only `user_input` (ad hoc mode), calls LLM to generate a step list
-- Output: `step_queue: list[Step]`
+- Uses the **Antigravity** prompt to classify tasks as `os` or `browser`.
+- Returns a structured `TaskPlan` with plain-English steps.
+- Output: `TaskPlan` (category, sub_category, action_params, plain_english_plan)
+
+**`os_executor`**
+- **Direct Model**: Bypasses LLM tool-calling to ensure zero-latency.
+- Uses a **Smart Task Parser** (Regex/Keyword) to match intents directly to OS tools.
+- Executes: `launch_app`, `open_folder`, `compute_in_calculator`, `check_disk_space`, `get_battery_status`, `check_wifi`, `open_settings`.
+- Emits real-time status updates and final textual results.
 
 **`router`**
 - Input: `step_queue`

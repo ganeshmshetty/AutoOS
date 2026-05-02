@@ -100,11 +100,20 @@ async def _try_direct_search(aliases: list[str]) -> dict:
         if not root.exists():
             continue
         try:
-            for exe in root.rglob("*.exe"):
-                stem = exe.stem.lower().replace(" ", "").replace("-", "").replace("_", "")
-                if any(t in stem or stem in t for t in terms):
-                    candidates.append(exe)
-        except PermissionError:
+            # Only search 2 levels deep to avoid hanging
+            for p in root.iterdir():
+                if p.is_dir():
+                    try:
+                        for exe in p.glob("*.exe"):
+                            stem = exe.stem.lower().replace(" ", "").replace("-", "").replace("_", "")
+                            if any(t in stem or stem in t for t in terms):
+                                candidates.append(exe)
+                    except: continue
+                elif p.suffix.lower() == ".exe":
+                    stem = p.stem.lower().replace(" ", "").replace("-", "").replace("_", "")
+                    if any(t in stem or stem in t for t in terms):
+                        candidates.append(p)
+        except Exception:
             continue
 
     if not candidates:
@@ -157,6 +166,10 @@ async def _try_shell_execute(app_name: str, aliases: list[str]) -> dict:
         "mail": "outlookmail:",
         "store": "ms-windows-store:",
         "weather": "bingweather:",
+        "whatsapp": "whatsapp:",
+        "spotify": "spotify:",
+        "edge": "microsoft-edge:",
+        "browser": "https://google.com",
     }
     
     potential_uris = []

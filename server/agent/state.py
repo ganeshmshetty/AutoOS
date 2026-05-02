@@ -31,3 +31,5 @@ class AgentState(TypedDict):
     # ── Final result ─────────────────────────────────────────────────────────
     result: str
     plan: List[str]
+    # Persistent context for chaining (e.g. last_folder, last_app, last_contact)
+    context: Annotated[dict, lambda old, new: {**old, **new}]

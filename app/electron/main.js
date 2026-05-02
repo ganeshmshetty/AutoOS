@@ -7,8 +7,11 @@ const __dirname = path.dirname(__filename);
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    width: 900, // Widened to accommodate sidebar
+    height: 700,
+    alwaysOnTop: true,
+    autoHideMenuBar: true, // Remove the "ugly" menu bar
+    title: "AutoOS Assistant",
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,

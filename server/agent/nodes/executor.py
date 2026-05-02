@@ -5,6 +5,12 @@ import time
 import os
 import re
 import logging
+import pyautogui
+import psutil
+try:
+    import pygetwindow as gw
+except:
+    gw = None
 from langchain_core.runnables import RunnableConfig
 from server.agent.state import AgentState
 from server.agent.tools.browser_tool import run_browser_task
@@ -19,8 +25,27 @@ logger = logging.getLogger("AutoOS.executor")
 
 async def launch_app(app_name: str) -> str:
     try:
+        # Smart Focus: Check if already running to avoid "duplicate instances"
+        try:
+            import pygetwindow as gw
+            import psutil
+            
+            # 1. Check for window by name
+            windows = [w for w in gw.getAllWindows() if app_name.lower() in w.title.lower() and w.visible]
+            if windows:
+                windows[0].activate()
+                return f"Focused existing {app_name} window."
+                
+            # 2. Check process list for common app names
+            for proc in psutil.process_iter(['name']):
+                if app_name.lower() in proc.info['name'].lower():
+                    # Process is running but maybe window is hidden/minimized
+                    # Try to bring it up via shell execute (most apps will focus existing if already running)
+                    break
+        except:
+            pass
+
         # Use the robust app_module to find and launch the app
-        # This handles Registry, Shortcuts, and Start Menu
         result = await app_module.run(app_name, [app_name], {"app_name": app_name})
         return result
     except Exception as e:
@@ -41,7 +66,16 @@ def open_folder(folder_name: str) -> str:
         time.sleep(1.5)
         return f"Opened {path} in File Explorer."
     except Exception as e:
-        return f"Failed to open folder: {e}"
+        return f"Failed to open folder: {e}", {}
+
+def run_file(file_path: str) -> str:
+    try:
+        if os.path.exists(file_path):
+            os.startfile(file_path)
+            return f"Successfully opened: {file_path}"
+        return f"File not found: {file_path}"
+    except Exception as e:
+        return f"Error opening file: {e}"
 
 async def create_file_or_folder(name: str, folder_name: str = "desktop", content: str = "", is_folder: bool = False) -> str:
     # Resolve the true Windows path (handling OneDrive)
@@ -81,16 +115,16 @@ async def create_file_or_folder(name: str, folder_name: str = "desktop", content
                 except:
                     pass
                     
-                return f"Successfully created folder at: {full_path}"
-            return f"Failed to verify folder creation at {full_path}"
+                return f"Successfully created folder at: {full_path}", {"last_folder": full_path, "last_path": full_path}
+            return f"Failed to verify folder creation at {full_path}", {}
         else:
             with open(full_path, "w") as f:
                 f.write(content)
             # Open explorer and highlight the new file
             subprocess.Popen(f'explorer /select,"{full_path}"', shell=True)
-            return f"Successfully created file at: {full_path}"
+            return f"Successfully created file at: {full_path}", {"last_file": full_path, "last_path": full_path}
     except Exception as e:
-        return f"File creation failed: {e}"
+        return f"File creation failed: {e}", {}
 
 def compute_in_calculator(expression: str) -> str:
     try:
@@ -186,26 +220,18 @@ def open_settings(section: str = "") -> str:
 
 async def open_whatsapp_chat(contact_name: str) -> str:
     try:
-        import pyautogui
-        # Try to get window management for focus
-        try:
-            import pygetwindow as gw
-        except:
-            gw = None
-
         # 1. Launch/Show WhatsApp
         await launch_app("whatsapp")
-        await asyncio.sleep(5) # Give it plenty of time to come to front
+        await asyncio.sleep(5) 
         
-        # 2. Force window focus if possible
+        # 2. Force window focus
         if gw:
             try:
                 wa_windows = [w for w in gw.getWindowsWithTitle('WhatsApp') if w.visible]
                 if wa_windows:
                     wa_windows[0].activate()
                     await asyncio.sleep(1)
-            except:
-                pass # Fail silently if activation fails
+            except: pass
         
         # 3. Search for the contact (Ctrl+F)
         # We try twice to be sure
@@ -219,53 +245,95 @@ async def open_whatsapp_chat(contact_name: str) -> str:
         # 4. Open the chat
         pyautogui.press('enter')
         await asyncio.sleep(1)
-        return f"Opened WhatsApp and focused on '{contact_name}'."
+        return f"Opened WhatsApp and focused on '{contact_name}'.", {"last_contact": contact_name, "last_app": "whatsapp"}
     except Exception as e:
-        return f"Could not open specific chat: {e}"
+        return f"Could not open specific chat: {e}", {}
 
-async def send_whatsapp_message(contact_name: str, message: str) -> str:
+async def quick_send_whatsapp(message: str) -> str:
     try:
-        import pyautogui
-        # 1. Open the chat first (using our existing robust navigation)
-        nav_result = await open_whatsapp_chat(contact_name)
-        if "Could not" in nav_result:
-            return nav_result
-            
-        await asyncio.sleep(1.5) # Wait for UI to settle
+        # 1. Bring WhatsApp to front
+        await launch_app("whatsapp")
+        await asyncio.sleep(1)
         
-        # 2. Type the message and send
+        # 2. Directly type and send
         pyautogui.write(message, interval=0.05)
-        await asyncio.sleep(0.5)
         pyautogui.press('enter')
-        
-        # 3. Take a screenshot for visual confirmation
-        os.makedirs("server/screenshots", exist_ok=True)
-        pyautogui.screenshot("server/screenshots/whatsapp_sent.png")
-        
-        return f"Sent message to '{contact_name}': \"{message}\". (Verification screenshot saved)"
+        return f"Sent to active chat: \"{message}\".", {"last_app": "whatsapp"}
     except Exception as e:
-        return f"Failed to send message: {e}"
+        return f"Failed to send quick message: {e}", {}
+
+async def send_whatsapp_message(contact_name: str, message: str, context: dict = None) -> str:
+    try:
+        # Optimization: If we are already in this chat, skip navigation!
+        ctx = context or {}
+        last_c = ctx.get("last_contact", "").lower()
+        if contact_name.lower() == last_c and last_c != "":
+            return await quick_send_whatsapp(message)
+
+        # 1. Open the chat first
+        res, ctx_nav = await open_whatsapp_chat(contact_name)
+        if "Could not" in res: return res, {}
+        await asyncio.sleep(1.5)
+        # 2. Type and send
+        pyautogui.write(message, interval=0.05)
+        pyautogui.press('enter')
+        return f"Sent message to '{contact_name}': \"{message}\".", {"last_contact": contact_name, "last_app": "whatsapp"}
+    except Exception as e:
+        return f"Failed to send message: {e}", {}
 
 # ─────────────────────────────────────────
 # SMART TASK PARSER — No LLM needed
 # ─────────────────────────────────────────
 
-async def parse_and_execute_os_task(task: str) -> str:
+async def parse_and_execute_os_task(task: str, context: dict = None) -> tuple[str, dict]:
     t = task.lower().strip()
+    ctx = context or {}
+    new_ctx = {}
+
+    # 1. CONTEXT RESOLUTION (Pronouns)
+    # Be aggressive about replacing pronouns if we have context
+    last_c = ctx.get("last_contact", "").lower()
+    for word in ["him", "her", "them", "that chat", "the chat"]:
+        pattern = rf"\b{word}\b"
+        if re.search(pattern, t) and last_c:
+            t = re.sub(pattern, last_c, t)
     
-    # Calculator with computation
+    if " it " in f" {t} " or t.endswith(" it"):
+        last_f = ctx.get("last_folder", "").lower() or ctx.get("last_file", "").lower()
+        if last_f:
+            t = t.replace(" it", f" {last_f}").replace(" it ", f" {last_f} ")
+    
+    # 2. EXECUTION LOGIC
+    # Calculator
     calc_match = re.search(r'(\d+[\s]*[+\-*/][\s]*\d+[\s]*[+\-*/\d\s]*)', task)
     if any(w in t for w in ["calculator", "calculate", "compute", "math"]) or calc_match:
-        if calc_match:
-            expr = calc_match.group(1).replace(" ", "")
-            return compute_in_calculator(expr)
-        else:
-            return await launch_app("calculator")
+        if calc_match: return compute_in_calculator(calc_match.group(1).replace(" ", "")), {"last_app": "calculator"}
+        else: return await launch_app("calculator"), {"last_app": "calculator"}
     
-    # Folder opening
+    # Folder opening - refined to avoid swallowing file requests
     for folder in ["downloads", "desktop", "documents", "pictures", "music", "videos"]:
+        # Only match if the task doesn't look like a specific file request (no extensions)
         if folder in t and any(w in t for w in ["open", "show", "go to", "navigate"]):
-            return open_folder(folder)
+            if not re.search(r'\.[a-z0-9]{2,4}', t):
+                res = open_folder(folder)
+                return res, {"last_folder": folder}
+    
+    # Specific File Opening
+    file_open_match = re.search(r'open\s+(.*?)\s+(?:in|on|at|inside)\s+(?:my\s+)?(downloads|desktop|documents|pictures|music|videos)', t)
+    if file_open_match:
+        filename = file_open_match.group(1).strip()
+        folder_name = file_open_match.group(2).strip()
+        
+        # Resolve path
+        user_path = os.path.expanduser("~")
+        candidates = [
+            os.path.join(user_path, "OneDrive", folder_name.capitalize()),
+            os.path.join(user_path, folder_name.capitalize())
+        ]
+        base_path = next((c for c in candidates if os.path.exists(c)), os.path.expanduser(f"~/{folder_name.capitalize()}"))
+        full_path = os.path.join(base_path, filename)
+        
+        return run_file(full_path), {"last_file": full_path, "last_folder": folder_name}
     
     # File/Folder Creation
     # Catch "create [file/folder] [name] in/on [folder]"
@@ -283,15 +351,27 @@ async def parse_and_execute_os_task(task: str) -> str:
         content = content_match.group(1) if content_match else ""
         return await create_file_or_folder(item_name, folder, content, is_folder=(item_type == "folder"))
 
-    # App launching
-    # Catch "send [message] to [name] on whatsapp"
-    wa_send_match = re.search(r'send\s+(.+)\s+to\s+([a-zA-Z0-9\s._-]+)\s+(?:on|in)\s+whatsapp', t)
-    if wa_send_match:
-        msg = wa_send_match.group(1).strip()
-        contact = wa_send_match.group(2).strip()
-        return await send_whatsapp_message(contact, msg)
+    # App launching & Messaging
+    # 1. Catch "send [message] to [name] on whatsapp" (with target)
+    # Using .*? (non-greedy) for the message part
+    wa_send_to_match = re.search(r'(?:send|text|message|ping|tell)\s+(.*?)\s+to\s+([a-zA-Z0-9\s._-]+)(?:\s+(?:on|in)\s+whatsapp)?', t)
+    if wa_send_to_match:
+        msg = wa_send_to_match.group(1).strip()
+        contact = wa_send_to_match.group(2).strip()
+        # Safety: If we still have a pronoun here, it means resolution failed
+        if contact in ["him", "her", "them", "it"] and "last_contact" in ctx:
+            contact = ctx["last_contact"]
+        return await send_whatsapp_message(contact, msg, ctx)
 
-    # Catch "open [name]'s chat in whatsapp" or "open whatsapp and navigate to [name] chat"
+    # 2. Catch "send [message]" or "text [message]" (implicit target)
+    wa_quick_send_match = re.search(r'^(?:send|text|message|say|tell|ping)\s+(.+)$', t)
+    if wa_quick_send_match and (ctx.get("last_app") == "whatsapp" or "last_contact" in ctx):
+        msg = wa_quick_send_match.group(1).strip()
+        # If it contains "to ", it's not a quick send
+        if " to " not in msg:
+            return await quick_send_whatsapp(msg)
+
+    # 3. Catch "open [name]'s chat in whatsapp" or "open whatsapp and navigate to [name] chat"
     wa_chat_match = re.search(r'(?:open|navigate|go to|search)\s+(?:whatsapp\s+and\s+)?(?:navigate\s+to\s+|find\s+)?([a-zA-Z0-9\s._-]+)\s+chat(?:\s+in\s+whatsapp)?', t)
     if wa_chat_match:
         return await open_whatsapp_chat(wa_chat_match.group(1).strip())
@@ -331,9 +411,9 @@ async def parse_and_execute_os_task(task: str) -> str:
         if section in t and any(w in t for w in ["settings", "setting", "open", "go to", "turn", "on", "off"]):
             return open_settings(section)
     if "settings" in t:
-        return open_settings()
+        return open_settings(), {}
 
-    return f"I understood this is an OS task but I'm not sure how to handle: '{task}'. Please be more specific."
+    return f"I understood this is an OS task but I'm not sure how to handle: '{task}'. Please be more specific.", {}
 
 # ─────────────────────────────────────────
 # BROWSER EXECUTOR
@@ -408,10 +488,13 @@ async def os_executor(state: AgentState, config: RunnableConfig) -> dict[str, An
     })
 
     try:
+        # Get existing context
+        ctx = state.get("context", {})
         # Run directly since it's already async and fast
-        result = await parse_and_execute_os_task(task)
+        result, new_ctx = await parse_and_execute_os_task(task, ctx)
     except Exception as e:
         result = f"Something went wrong: {str(e)}"
+        new_ctx = {}
 
     await emit_event(config, {
         "type": "step_done",
@@ -421,5 +504,6 @@ async def os_executor(state: AgentState, config: RunnableConfig) -> dict[str, An
 
     return {
         "result": result,
-        "messages": [{"role": "assistant", "content": result}]
+        "messages": [{"role": "assistant", "content": result}],
+        "context": new_ctx # Update context for the next turn
     }

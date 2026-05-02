@@ -135,6 +135,7 @@ STRICT RULES
 4. Keep plan steps short — max 6 steps
 5. Never use words like: "exe", "subprocess", "API", "DOM", "render"
 6. Always write as if speaking to an elderly person who is not tech-savvy
+7. USE CONTEXT: If the user refers to "it", "him", or "that chat", or if the task is ambiguous (like "Go to X chat"), look at the CURRENT CONTEXT to decide the category. If the last app was WhatsApp, "Go to chat" should be "os".
 """
 
 
@@ -159,7 +160,11 @@ async def planner(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
 
     llm = get_llm(temperature=0.0)
     structured_llm = llm.with_structured_output(TaskPlan)
-    prompt = f'{_SYSTEM_PROMPT}\n\nUser request: "{task}"'
+    
+    # Inject persistent context for chaining
+    ctx = state.get("context", {})
+    ctx_str = f"\n\nCURRENT CONTEXT: {ctx}" if ctx else ""
+    prompt = f'{_SYSTEM_PROMPT}{ctx_str}\n\nUser request: "{task}"'
 
     logger.info("Classifying task: %s", task)
     plan: TaskPlan = await invoke_with_fallback(structured_llm, prompt)

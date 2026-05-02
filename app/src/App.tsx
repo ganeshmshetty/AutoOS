@@ -1,80 +1,97 @@
-import { useState, useRef } from 'react'
-import './App.css'
+import { useState, useRef, useEffect } from 'react'
+import './index.css'
 
-interface LogEntry {
-  type: 'browser' | 'os' | 'info' | 'error' | 'plan';
-  message: string;
-  timestamp: string;
+interface Message {
+  id: string;
+  role: 'user' | 'agent' | 'system';
+  content: string;
+  type?: 'browser' | 'os' | 'info' | 'plan';
+  subCategory?: string;
 }
 
-const CATEGORY_LABELS: Record<string, { label: string; css: string }> = {
-  web_search:    { label: 'Web Search',       css: 'badge-browser' },
-  web_form:      { label: 'Web Form',          css: 'badge-browser' },
-  media_playback:{ label: 'Media Playback',   css: 'badge-browser' },
-  gov_portal:    { label: 'Gov Portal',        css: 'badge-browser' },
-  file_ops:      { label: 'File Operations',  css: 'badge-os' },
-  app_launch:    { label: 'App Launch',        css: 'badge-os' },
-  hardware:      { label: 'Hardware',          css: 'badge-os' },
-  settings:      { label: 'Settings',          css: 'badge-os' },
-  process_mgmt:  { label: 'Process',           css: 'badge-os' },
-  security:      { label: 'Security',          css: 'badge-os' },
-  diagnostics:   { label: 'Diagnostics',       css: 'badge-os' },
-  unknown:       { label: 'Unknown',           css: 'badge-warn' },
+const CATEGORY_LABELS: Record<string, string> = {
+  web_search: 'Web Search',
+  web_form: 'Web Form',
+  media_playback: 'Media Playback',
+  gov_portal: 'Gov Portal',
+  file_ops: 'File Operations',
+  app_launch: 'App Launch',
+  hardware: 'Hardware',
+  settings: 'Settings',
+  process_mgmt: 'Process',
+  security: 'Security',
+  diagnostics: 'Diagnostics',
+  unknown: 'Unknown',
 }
 
 function App() {
   const [input, setInput] = useState('')
   const [isRunning, setIsRunning] = useState(false)
-  const [logs, setLogs] = useState<LogEntry[]>([])
-  const [status, setStatus] = useState('Idle')
-  const [classification, setClassification] = useState<{
-    sub_category: string;
-    plain_english_plan: string;
-    needs_hitl: boolean;
-    category: string;
-  } | null>(null)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  const [messages, setMessages] = useState<Message[]>([])
+  const [history, setHistory] = useState<string[]>([]) // Empty initial history
+  const [status, setStatus] = useState<'idle' | 'analyzing' | 'executing'>('idle')
+  const chatEndRef = useRef<HTMLDivElement>(null)
   const ws = useRef<WebSocket | null>(null)
   const executionIdRef = useRef<string | null>(null)
 
-  const addLog = (message: string, type: LogEntry['type'] = 'info') => {
-    setLogs(prev => [{
-      type,
-      message,
-      timestamp: new Date().toLocaleTimeString()
-    }, ...prev])
+  const scrollToBottom = () => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages, status])
+
+  const addMessage = (role: Message['role'], content: string, extra: Partial<Message> = {}) => {
+    setMessages(prev => [...prev, {
+      id: Math.random().toString(36).substring(7),
+      role,
+      content,
+      ...extra
+    }])
+  }
+
+  const handleNewChat = () => {
+    if (messages.length > 0) {
+      const firstUserMsg = messages.find(m => m.role === 'user')?.content || 'New Chat'
+      setHistory(prev => [firstUserMsg, ...prev.slice(0, 9)])
+    }
+    setMessages([])
+    setInput('')
+    setIsRunning(false)
+    setStatus('idle')
   }
 
   const handleStop = async () => {
-    // 1. Send stop via WebSocket (fastest path)
-    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+    if (ws.current?.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({ type: 'stop' }))
     }
-    // 2. Also call REST endpoint as a fallback
     const execId = executionIdRef.current
     if (execId) {
       try {
         await fetch(`http://localhost:8765/executions/${execId}/stop`, { method: 'POST' })
-      } catch (_) { /* ignore */ }
+      } catch (_) {}
     }
     setIsRunning(false)
-    setStatus('Stopped')
-    addLog('Task stopped by user.', 'error')
+    setStatus('idle')
+    addMessage('system', 'Execution stopped.')
   }
 
   const handleRun = async () => {
-    if (!input.trim()) return
+    if (!input.trim() || isRunning) return
 
+    const userTask = input.trim()
+    setInput('')
     setIsRunning(true)
-    setLogs([])
-    setClassification(null)
-    setStatus('Analyzing...')
-    addLog(`Starting task: ${input}`)
+    setStatus('analyzing')
+    addMessage('user', userTask)
 
     try {
       const response = await fetch('http://localhost:8765/executions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ task: input })
+        body: JSON.stringify({ task: userTask })
       })
 
       const data = await response.json()
@@ -84,7 +101,7 @@ function App() {
       ws.current = new WebSocket(`ws://localhost:8765/ws/execution/${executionId}`)
 
       ws.current.onopen = () => {
-        ws.current?.send(JSON.stringify({ type: 'start', task: input }))
+        ws.current?.send(JSON.stringify({ type: 'start', task: userTask }))
       }
 
       ws.current.onmessage = (event) => {
@@ -92,127 +109,136 @@ function App() {
 
         switch (data.type) {
           case 'classification': {
-            const sub = data.sub_category || data.category || 'unknown'
+            const sub = data.sub_category || 'unknown'
             const cat = data.category || 'os'
-            setClassification({
-              sub_category: sub,
-              plain_english_plan: data.plain_english_plan || '',
-              needs_hitl: data.needs_hitl ?? false,
-              category: cat,
-            })
-            const meta = CATEGORY_LABELS[sub] || CATEGORY_LABELS['unknown']
-            addLog(`Routed to: ${meta.label}`, cat === 'browser' ? 'browser' : 'os')
+            setStatus('executing')
             if (data.plain_english_plan) {
-              addLog(`Plan: ${data.plain_english_plan}`, 'plan')
+              addMessage('agent', data.plain_english_plan, { 
+                type: cat === 'browser' ? 'browser' : 'os',
+                subCategory: sub 
+              })
             }
             break
           }
-          case 'step_start':
-            setStatus('Executing...')
-            addLog(data.description, 'info')
-            break
-          case 'step_done':
-            addLog(data.description, 'info')
-            break
-          case 'step_error':
-            addLog(`Error: ${data.error}`, 'error')
-            setIsRunning(false)
-            setStatus('Error')
-            break
           case 'complete':
-            setStatus('Completed')
+            addMessage('agent', data.summary)
             setIsRunning(false)
-            addLog(`Result: ${data.summary}`, 'info')
+            setStatus('idle')
             ws.current?.close()
             break
-          case 'stopped':
-            setStatus('Stopped')
+          case 'step_error':
+            addMessage('system', `Error: ${data.error}`)
             setIsRunning(false)
-            addLog(data.message || 'Task stopped.', 'error')
+            setStatus('idle')
+            break
+          case 'stopped':
+            setIsRunning(false)
+            setStatus('idle')
             ws.current?.close()
             break
         }
       }
-
-      ws.current.onerror = () => {
-        addLog('Connection error — is the backend running?', 'error')
-        setIsRunning(false)
-        setStatus('Error')
-      }
-
     } catch (error) {
-      addLog(`Failed to start execution: ${error}`, 'error')
+      addMessage('system', `Failed to start: ${error}`)
       setIsRunning(false)
-      setStatus('Error')
+      setStatus('idle')
     }
   }
 
-  const sub = classification?.sub_category
-  const meta = sub ? (CATEGORY_LABELS[sub] || CATEGORY_LABELS['unknown']) : null
-
   return (
-    <div className="container">
-      <h1 style={{ marginBottom: '0.5rem', color: '#38bdf8' }}>AutoOS Gateway</h1>
-      <p style={{ marginBottom: '2rem', color: '#94a3b8' }}>Unified AI Control for Web &amp; Desktop</p>
-
-      <div className="card">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="What would you like me to do? (e.g. 'Open Valorant' or 'Find my report')"
-          disabled={isRunning}
-          onKeyDown={(e) => e.key === 'Enter' && handleRun()}
-        />
-        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-          <button
-            id="btn-execute"
-            onClick={handleRun}
-            disabled={isRunning || !input}
-          >
-            {isRunning ? 'Running...' : 'Execute Task'}
-          </button>
-
-          {isRunning && (
-            <button
-              id="btn-stop"
-              className="btn-stop"
-              onClick={handleStop}
-            >
-              Stop
-            </button>
+    <div className="main-layout">
+      <aside className={`sidebar ${!isSidebarOpen ? 'collapsed' : ''}`}>
+        <button 
+          className="toggle-sidebar-btn" 
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          title={isSidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
+        >
+          {isSidebarOpen ? (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
           )}
-        </div>
-      </div>
+        </button>
 
-      {classification && meta && (
-        <div className={`classification-banner ${meta.css}`}>
-          <div className="banner-left">
-            <div className="badge-label">{meta.label}</div>
-            {classification.plain_english_plan && (
-              <div className="badge-plan">{classification.plain_english_plan}</div>
-            )}
-          </div>
-          {classification.needs_hitl && (
-            <span className="hitl-warning">Needs confirmation</span>
-          )}
-        </div>
-      )}
-
-      {logs.length > 0 && (
-        <div className="status-log">
-          <div style={{ paddingBottom: '0.5rem', borderBottom: '1px solid #334155', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ fontWeight: 'bold' }}>Status: {status}</span>
-            <span style={{ color: '#94a3b8' }}>Execution Log</span>
-          </div>
-          {logs.map((log, i) => (
-            <div key={i} className={`status-entry type-${log.type}`}>
-              <span style={{ color: '#64748b', fontSize: '0.8rem', marginRight: '0.5rem' }}>[{log.timestamp}]</span>
-              {log.message}
+        <button className="new-chat-btn" onClick={handleNewChat}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          New Chat
+        </button>
+        <div className="history-list">
+          {history.map((item, i) => (
+            <div key={i} className="history-item">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '8px' }}>
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              </svg>
+              {item}
             </div>
           ))}
         </div>
-      )}
+      </aside>
+
+      <main className="app-container">
+        <div className="chat-window">
+          {messages.length === 0 && (
+            <div style={{ marginTop: '20vh', textAlign: 'center', color: '#64748b' }}>
+              <h2 style={{ color: '#38bdf8', marginBottom: '0.5rem' }}>AutoOS</h2>
+              <p>Your OS companion. Ready for your commands.</p>
+            </div>
+          )}
+
+          {messages.map((m) => (
+            <div key={m.id} className={`message message-${m.role}`}>
+              {m.subCategory && (
+                <div className={`badge badge-${m.type}`}>
+                  {CATEGORY_LABELS[m.subCategory] || m.subCategory}
+                </div>
+              )}
+              {m.content}
+            </div>
+          ))}
+
+          {status !== 'idle' && (
+            <div className="message message-agent">
+              <div className="typing-indicator">
+                <div className="dot"></div>
+                <div className="dot"></div>
+                <div className="dot"></div>
+              </div>
+            </div>
+          )}
+          <div ref={chatEndRef} />
+        </div>
+
+        <div className="input-area">
+          <div className="input-container">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="How can I help you today?"
+              disabled={isRunning}
+              onKeyDown={(e) => e.key === 'Enter' && handleRun()}
+              autoFocus
+            />
+            {isRunning ? (
+              <button className="btn-stop" onClick={handleStop}>Stop</button>
+            ) : (
+              <button className="btn-send" onClick={handleRun} disabled={!input.trim()}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <line x1="22" y1="2" x2="11" y2="13"></line>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+      </main>
     </div>
   )
 }

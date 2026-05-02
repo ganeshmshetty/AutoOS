@@ -93,6 +93,16 @@ function App() {
   const guardianWs = useRef<WebSocket | null>(null);
   const executionIdRef = useRef<string | null>(null);
 
+  const addMessage = useCallback((role: Message['role'], content: string, extra?: Record<string, any>) => {
+    const msg: Message = {
+      id: Math.random().toString(36).slice(2, 8),
+      role,
+      content,
+      ...extra,
+    };
+    setMessages(prev => [...prev, msg]);
+  }, []);
+
   // --- Global Cleanup on Unmount ---
   useEffect(() => {
     return () => {
@@ -180,6 +190,10 @@ function App() {
     return () => {
       isMounted = false;
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      guardianWs.current?.close();
+    };
+  }, []);
+
   const compactStateRef = useRef(compactState);
   useEffect(() => { compactStateRef.current = compactState; }, [compactState]);
 

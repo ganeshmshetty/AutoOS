@@ -228,13 +228,6 @@ function ChatView({
               {thread.preview}
             </div>
           ))}
-              tabIndex={0}
-              onKeyDown={(e) => e.key === 'Enter' && setThreadId(thread.id)}
-            >
-              <MessageSquare size={14} style={{ marginRight: '8px' }} />
-              {thread.preview}
-            </div>
-          ))}
         </div>
       </aside>
 

@@ -60,12 +60,6 @@ function DashboardView() {
           alert(`Failed to kill process (HTTP ${res.status})`);
         }
       } else {
-          alert(`Failed to kill: ${errorData.detail || 'Unknown error'}`);
-        } catch {
-          alert(`Failed to kill process (HTTP ${res.status})`);
-        }
-      } else {
-      } else {
         // Refresh immediately
         fetchData();
       }

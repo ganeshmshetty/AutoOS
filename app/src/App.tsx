@@ -256,7 +256,6 @@ function App() {
       )}
 
       <div className="main-app-container" style={{ display: compactState.isCompact ? 'none' : 'block' }}>
-        <Router>
           <div className="root-layout">
             <SidebarDock />
             <div className="content-area">
@@ -280,7 +279,6 @@ function App() {
               </Routes>
             </div>
           </div>
-        </Router>
       </div>
 
       {/* --- Face Auth Modal --- */}

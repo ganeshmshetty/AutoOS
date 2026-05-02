@@ -181,7 +181,23 @@ async def get_system_health():
     cpu = psutil.cpu_percent(interval=None)
     ram = psutil.virtual_memory().percent
     battery = psutil.sensors_battery()
-    
+
+    processes = []
+    for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent']):
+        try:
+            info = proc.info
+            if info['cpu_percent'] is not None:
+                processes.append({
+                    "pid": info['pid'],
+                    "name": info['name'],
+                    "cpu_percent": round(info['cpu_percent'], 1),
+                    "memory_percent": round(info['memory_percent'] or 0.0, 1),
+                })
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+
+    processes = sorted(processes, key=lambda x: x['cpu_percent'], reverse=True)[:15]
+
     return {
         "cpu": cpu,
         "ram": ram,
@@ -189,7 +205,8 @@ async def get_system_health():
             "percent": battery.percent if battery else 100,
             "power_plugged": battery.power_plugged if battery else True
         } if battery else None,
-        "disk": psutil.disk_usage('/').percent
+        "disk": psutil.disk_usage('/').percent,
+        "processes": processes,
     }
 
 async def background_heartbeat():

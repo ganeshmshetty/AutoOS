@@ -305,12 +305,27 @@ Response: { "text": "Book me a flight to Mumbai" }
 
 Any `param` value or `command` string may include `{{input_name}}` tokens. They are resolved at execution time by substituting the user-provided input values. The backend handles interpolation before passing steps to the agent.
 
+### Extension Telemetry Mapping
+
+The Chrome extension records raw user interactions. Person 4 will map these flat telemetry events into the canonical step array:
+- `event: 'click'` → `type: 'browser', action: 'click', params: { selector: xpath }`
+- `event: 'input'` → `type: 'browser', action: 'fill', params: { selector: xpath, value: ... }`
+- Consecutive identical actions are combined directly via the extension's onboard noise reducer.
+
 ---
 
 ## 6. File & Folder Structure
 
 ```
 autoflow/
+│
+├── extension/                       # Task Mining Chrome Extension (Recorder)
+│   ├── manifest.json                # V3 manifest for Chrome
+│   ├── src/
+│   │   ├── background/              # IndexedDB telemetry persistence
+│   │   ├── content/                 # DOM event capture & noise reduction
+│   │   └── ui/                      # Dashboard and settings popup
+│   └── utils/                       # Noise reduction, CSV exports
 │
 ├── app/                             # Electron + React frontend (Person 3)
 │   ├── electron/
@@ -734,7 +749,7 @@ These apply to every screen Person 3 builds and every error message Person 2 wri
 
 ---
 
-## 14. Open Questions
+## 14.~~Browser extension output format~~ [RESOLVED] Uses flat event objects (`event`: 'click', `xpath`/`css_selector`) + noise reduction logic. Person 4 to map this telemetry to our `browser` actions
 
 Track these here until resolved. Assign a person and a resolution date.
 

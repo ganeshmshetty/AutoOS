@@ -16,7 +16,10 @@ import asyncio
 import logging
 import os
 import subprocess
-import winreg
+try:
+    import winreg
+except ImportError:
+    winreg = None
 from pathlib import Path
 
 import pyautogui
@@ -71,6 +74,8 @@ async def run(task: str, entities: list[str], action_params: dict) -> str:
 
 
 async def _try_registry(aliases: list[str]) -> dict:
+    if not winreg:
+        return {"success": False}
     for alias in aliases:
         exe = alias if alias.lower().endswith(".exe") else alias + ".exe"
         for hive in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):

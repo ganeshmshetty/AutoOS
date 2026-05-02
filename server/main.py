@@ -8,8 +8,9 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
-from server.agent.graph import app_graph
-from server.agent.bus import manager, emit_event
+from agent.graph import app_graph
+from agent.bus import manager, emit_event
+from routers.face_auth import router as face_auth_router
 from dotenv import load_dotenv
 
 logging.basicConfig(level=logging.INFO)
@@ -27,6 +28,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(face_auth_router)
 
 # ── Static Files ─────────────────────────────────────────────────────────────
 os.makedirs(os.path.join(os.path.dirname(__file__), "screenshots"), exist_ok=True)
@@ -136,7 +139,7 @@ async def stop_execution(execution_id: str):
 @app.post("/api/automate/task", response_model=TaskResponse)
 async def automate_browser_task(request: TaskRequest):
     """Extension-friendly direct browser automation endpoint."""
-    from server.agent.tools.browser_tool import BrowserAutomationRunner
+    from agent.tools.browser_tool import BrowserAutomationRunner
 
     try:
         logger.info("Received browser automation task: %s", request.task)
@@ -160,7 +163,23 @@ async def get_system_health():
     cpu = psutil.cpu_percent(interval=None)
     ram = psutil.virtual_memory().percent
     battery = psutil.sensors_battery()
-    
+
+    processes = []
+    for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent']):
+        try:
+            info = proc.info
+            if info['cpu_percent'] is not None:
+                processes.append({
+                    "pid": info['pid'],
+                    "name": info['name'],
+                    "cpu_percent": round(info['cpu_percent'], 1),
+                    "memory_percent": round(info['memory_percent'] or 0.0, 1),
+                })
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+
+    processes = sorted(processes, key=lambda x: x['cpu_percent'], reverse=True)[:15]
+
     return {
         "cpu": cpu,
         "ram": ram,
@@ -168,7 +187,8 @@ async def get_system_health():
             "percent": battery.percent if battery else 100,
             "power_plugged": battery.power_plugged if battery else True
         } if battery else None,
-        "disk": psutil.disk_usage('/').percent
+        "disk": psutil.disk_usage('/').percent,
+        "processes": processes,
     }
 
 async def background_heartbeat():
@@ -206,7 +226,7 @@ async def startup_event():
 
 @app.post("/system/processes/kill")
 async def kill_process_api(data: dict):
-    from server.agent.nodes.executor import kill_process
+    from agent.nodes.executor import kill_process
     target = data.get("target")
     if not target:
         raise HTTPException(status_code=400, detail="Missing target process name or PID")
@@ -220,21 +240,71 @@ from pathlib import Path
 from datetime import datetime
 import json
 
+def _sanitize_messages(messages: list) -> list:
+    """
+    Normalize a mixed list of messages to plain {id, role, content, ...} dicts.
+    LangGraph's add_messages may store LangChain AIMessage / HumanMessage objects
+    whose 'content' field is a list of {type, text, extras} blocks instead of a str.
+    This ensures React always receives a plain string in the content field.
+    """
+    clean = []
+    for m in messages:
+        # Handle both dict and LangChain BaseMessage objects
+        if hasattr(m, "content"):
+            role = getattr(m, "type", "agent")          # AIMessage -> "ai"
+            role = "agent" if role in ("ai", "assistant") else role
+            raw_content = m.content
+        elif isinstance(m, dict):
+            role = m.get("role", m.get("type", "system"))
+            raw_content = m.get("content", "")
+        else:
+            continue
+
+        # content can be a list of content blocks from multi-modal responses
+        if isinstance(raw_content, list):
+            parts = []
+            for block in raw_content:
+                if isinstance(block, str):
+                    parts.append(block)
+                elif isinstance(block, dict):
+                    parts.append(block.get("text", str(block)))
+                else:
+                    parts.append(str(block))
+            content_str = " ".join(parts)
+        elif isinstance(raw_content, str):
+            content_str = raw_content
+        else:
+            content_str = str(raw_content)
+
+        entry = {
+            "id": m.get("id", "") if isinstance(m, dict) else getattr(m, "id", ""),
+            "role": role,
+            "content": content_str,
+        }
+        # Preserve optional display fields if present
+        for field in ("type", "subCategory"):
+            val = m.get(field) if isinstance(m, dict) else getattr(m, field, None)
+            if val:
+                entry[field] = val
+        clean.append(entry)
+    return clean
+
+
 @app.post("/system/threads/save")
 async def save_thread(data: dict):
     thread_id = data.get("id", "default")
-    messages = data.get("messages", [])
-    
+    messages = _sanitize_messages(data.get("messages", []))
+
     thread_path = Path("server/knowledge/threads")
     thread_path.mkdir(parents=True, exist_ok=True)
-    
+
     with open(thread_path / f"{thread_id}.json", "w") as f:
         json.dump({
             "id": thread_id,
             "last_updated": datetime.now().isoformat(),
             "messages": messages
         }, f, indent=2)
-    
+
     return {"status": "saved"}
 
 @app.get("/system/threads/latest")

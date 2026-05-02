@@ -12,9 +12,9 @@ from typing import Any, Literal
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
 
-from server.agent.bus import emit_event
-from server.agent.llm_factory import get_llm, invoke_with_fallback
-from server.agent.state import AgentState
+from agent.bus import emit_event
+from agent.llm_factory import get_llm, invoke_with_fallback
+from agent.state import AgentState
 
 logger = logging.getLogger("AutoOS.planner")
 

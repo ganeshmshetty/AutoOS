@@ -12,10 +12,10 @@ try:
 except:
     gw = None
 from langchain_core.runnables import RunnableConfig
-from server.agent.state import AgentState
-from server.agent.tools.browser_tool import run_browser_task
-from server.agent.bus import emit_event
-from server.agent.modules import app_module
+from agent.state import AgentState
+from agent.tools.browser_tool import run_browser_task
+from agent.bus import emit_event
+from agent.modules import app_module
 
 logger = logging.getLogger("AutoOS.executor")
 
@@ -591,7 +591,7 @@ async def reasoning_executor(state: AgentState, config: RunnableConfig) -> dict[
     })
 
     try:
-        from server.agent.llm_factory import get_llm
+        from agent.llm_factory import get_llm
         llm = get_llm(temperature=0.7) # Slightly higher temperature for "creative" reasoning
         
         # Pull in context from Memory to help reasoning

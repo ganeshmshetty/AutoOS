@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from server.agent.state import AgentState
+from agent.state import AgentState
 
 MEMORY_FILE = "server/knowledge/MEMORY.md"
 HABITS_FILE = "server/knowledge/HABITS.md"

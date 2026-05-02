@@ -20,6 +20,8 @@ import WorkflowsView from './WorkflowsView';
 import { Message } from './types';
 import './index.css';
 
+import { FaceAuthModal } from './FaceAuthModal';
+
 // --- Shared Types ---
 declare global {
   interface Window {
@@ -75,6 +77,17 @@ function App() {
     type: 'task'
   });
   const [miniInput, setMiniInput] = useState('');
+  
+  // --- Face Auth State ---
+  const [faceRegistered, setFaceRegistered] = useState(false);
+  const [faceAuthAction, setFaceAuthAction] = useState<{ mode: 'register' } | { mode: 'verify', task: string, workflow: any } | null>(null);
+
+  useEffect(() => {
+    fetch('http://localhost:8765/api/face-auth/status')
+      .then(res => res.json())
+      .then(data => setFaceRegistered(data.registered))
+      .catch(console.error);
+  }, []);
   
   const ws = useRef<WebSocket | null>(null);
   const guardianWs = useRef<WebSocket | null>(null);
@@ -307,7 +320,6 @@ function App() {
       )}
 
       <div className="main-app-container" style={{ display: compactState.isCompact ? 'none' : 'block' }}>
-        <Router>
           <div className="root-layout">
             <SidebarDock />
             <div className="content-area">
@@ -326,13 +338,30 @@ function App() {
                   />
                 } />
                 <Route path="/dashboard" element={<DashboardView />} />
-                <Route path="/workflows" element={<WorkflowsView handleRun={handleRun} isRunning={isRunning} />} />
+                <Route path="/workflows" element={<WorkflowsView handleRun={handleRun} isRunning={isRunning} faceRegistered={faceRegistered} setFaceAuthAction={setFaceAuthAction} />} />
                 <Route path="/skills" element={<SkillsView />} />
               </Routes>
             </div>
           </div>
-        </Router>
       </div>
+
+      {/* --- Face Auth Modal --- */}
+      {faceAuthAction && (
+        <FaceAuthModal
+          mode={faceAuthAction.mode}
+          onCancel={() => setFaceAuthAction(null)}
+          onSuccess={() => {
+            if (faceAuthAction.mode === 'register') {
+              setFaceRegistered(true);
+              setFaceAuthAction(null);
+            } else if (faceAuthAction.mode === 'verify') {
+              // Dispatch event so WorkflowsView can start the workflow sequence
+              window.dispatchEvent(new CustomEvent('face-verified', { detail: faceAuthAction }));
+              setFaceAuthAction(null);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -1,0 +1,40 @@
+{
+  "id": "chat-mootqpie",
+  "last_updated": "2026-05-03T02:33:26.092431",
+  "messages": [
+    {
+      "id": "cnkwwe",
+      "role": "user",
+      "content": "Open spotify on brave"
+    },
+    {
+      "id": "luso6t",
+      "role": "agent",
+      "content": "I will open the Brave web browser and navigate to the Spotify website for you.",
+      "type": "browser",
+      "subCategory": "app_control"
+    },
+    {
+      "id": "rt119l",
+      "role": "agent",
+      "content": "Spotify has been successfully opened in the browser."
+    },
+    {
+      "id": "37vsuc",
+      "role": "user",
+      "content": "play some hit somgs"
+    },
+    {
+      "id": "aco9wd",
+      "role": "agent",
+      "content": "I will open your web browser, go to YouTube, and play some popular hit songs for you.",
+      "type": "browser",
+      "subCategory": "media_playback"
+    },
+    {
+      "id": "p2gx6",
+      "role": "agent",
+      "content": "I have successfully navigated to YouTube, searched for 'hit songs', selected a video, and started playback. You are now listening to hit Bollywood songs."
+    }
+  ]
+}

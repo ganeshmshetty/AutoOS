@@ -1,0 +1,52 @@
+{
+  "id": "chat-mootws1f",
+  "last_updated": "2026-05-03T02:37:43.336018",
+  "messages": [
+    {
+      "id": "t40tfb",
+      "role": "user",
+      "content": "Open spotify"
+    },
+    {
+      "id": "34b38n",
+      "role": "agent",
+      "content": "I will open the Spotify app on your computer so you can listen to your music.",
+      "type": "os",
+      "subCategory": "app_launch"
+    },
+    {
+      "id": "8myx3p",
+      "role": "agent",
+      "content": "I understood this is an OS task but I'm not sure how to handle: 'Open spotify'. Please be more specific."
+    },
+    {
+      "id": "djvi1b",
+      "role": "user",
+      "content": "Open spotify on brave"
+    },
+    {
+      "id": "qe3jtp",
+      "role": "agent",
+      "content": "I will open the Brave web browser and take you to the Spotify website.",
+      "type": "browser",
+      "subCategory": "app_launch"
+    },
+    {
+      "id": "pe7c7j",
+      "role": "agent",
+      "content": "I understood this is an OS task but I'm not sure how to handle: 'Open spotify on brave'. Please be more specific."
+    },
+    {
+      "id": "d8ndg",
+      "role": "user",
+      "content": "play some hit somgs"
+    },
+    {
+      "id": "le325w",
+      "role": "agent",
+      "content": "I will open your music player and start playing some popular hit songs for you.",
+      "type": "browser",
+      "subCategory": "media_playback"
+    }
+  ]
+}

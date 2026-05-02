@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -17,6 +17,11 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
     },
+  });
+
+  ipcMain.on('resize-window', (event, { width, height }) => {
+    win.setSize(width, height, true);
+    win.setResizable(width >= 900);
   });
 
   // In development, load from Vite dev server

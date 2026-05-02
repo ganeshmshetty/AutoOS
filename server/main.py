@@ -189,6 +189,102 @@ async def get_system_health():
         "disk": psutil.disk_usage('/').percent
     }
 
+async def background_heartbeat():
+    """
+    Proactive Guardian Mode: Checks system status every 60 seconds 
+    and broadcasts alerts to the UI.
+    """
+    import psutil
+    while True:
+        try:
+            # Check CPU
+            cpu = psutil.cpu_percent(interval=1)
+            if cpu > 90:
+                await manager.broadcast({
+                    "type": "guardian_alert", 
+                    "message": f"High CPU Load detected ({cpu}%). Suggest closing background apps."
+                })
+            
+            # Check Battery
+            battery = psutil.sensors_battery()
+            if battery and battery.percent < 20 and not battery.power_plugged:
+                await manager.broadcast({
+                    "type": "guardian_alert",
+                    "message": f"Low Battery ({battery.percent}%). Please connect a charger."
+                })
+        except Exception as e:
+            logger.error(f"Heartbeat error: {e}")
+        
+        await asyncio.sleep(60)
+
+@app.on_event("startup")
+async def startup_event():
+    # Start the proactive guardian heartbeat
+    asyncio.create_task(background_heartbeat())
+
+@app.post("/system/processes/kill")
+async def kill_process_api(data: dict):
+    from server.agent.nodes.executor import kill_process
+    target = data.get("target")
+    if not target:
+        raise HTTPException(status_code=400, detail="Missing target process name or PID")
+    
+    result = kill_process(str(target))
+    if "Failed" in result or "No active" in result:
+        raise HTTPException(status_code=400, detail=result)
+    return {"message": result}
+
+from pathlib import Path
+from datetime import datetime
+import json
+
+@app.post("/system/threads/save")
+async def save_thread(data: dict):
+    thread_id = data.get("id", "default")
+    messages = data.get("messages", [])
+    
+    thread_path = Path("server/knowledge/threads")
+    thread_path.mkdir(parents=True, exist_ok=True)
+    
+    with open(thread_path / f"{thread_id}.json", "w") as f:
+        json.dump({
+            "id": thread_id,
+            "last_updated": datetime.now().isoformat(),
+            "messages": messages
+        }, f, indent=2)
+    
+    return {"status": "saved"}
+
+@app.get("/system/threads/latest")
+async def get_latest_thread():
+    thread_path = Path("server/knowledge/threads")
+    if not thread_path.exists():
+        return {"messages": [], "id": "new-" + datetime.now().strftime("%Y%m%d%H%M%S")}
+    
+    files = list(thread_path.glob("*.json"))
+    if not files:
+        return {"messages": [], "id": "new-" + datetime.now().strftime("%Y%m%d%H%M%S")}
+    
+    # Sort by modification time
+    latest_file = max(files, key=lambda f: f.stat().st_mtime)
+    with open(latest_file, "r") as f:
+        return json.load(f)
+
+@app.get("/system/threads")
+async def list_threads():
+    thread_path = Path("server/knowledge/threads")
+    if not thread_path.exists(): return []
+    
+    threads = []
+    for f in thread_path.glob("*.json"):
+        with open(f, "r") as tf:
+            data = json.load(tf)
+            threads.append({
+                "id": data["id"],
+                "last_updated": data["last_updated"],
+                "preview": data["messages"][0]["content"] if data["messages"] else "Empty Chat"
+            })
+    return sorted(threads, key=lambda x: x["last_updated"], reverse=True)
 
 if __name__ == "__main__":
     import uvicorn

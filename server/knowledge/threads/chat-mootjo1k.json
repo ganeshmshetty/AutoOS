@@ -1,0 +1,23 @@
+{
+  "id": "chat-mootjo1k",
+  "last_updated": "2026-05-03T02:25:01.735367",
+  "messages": [
+    {
+      "id": "2ckprf",
+      "role": "user",
+      "content": "Open spotify on brave"
+    },
+    {
+      "id": "he79ao",
+      "role": "agent",
+      "content": "I will open the Brave web browser and go to the Spotify website for you.",
+      "type": "browser",
+      "subCategory": "app_launch"
+    },
+    {
+      "id": "g8u55m",
+      "role": "agent",
+      "content": "I understood this is an OS task but I'm not sure how to handle: 'Open spotify on brave'. Please be more specific."
+    }
+  ]
+}

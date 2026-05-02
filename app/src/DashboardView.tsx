@@ -1,45 +1,35 @@
 import { useState, useEffect } from 'react';
 import { 
-  Activity, 
   Cpu, 
   Database, 
-  Zap, 
   HardDrive, 
-  RefreshCcw,
-  ShieldCheck,
-  AlertTriangle
+  Battery as BatteryIcon, 
+  Activity, 
+  XCircle,
+  AlertCircle
 } from 'lucide-react';
 import { 
-  LineChart, 
-  Line, 
+  AreaChart, 
+  Area, 
   XAxis, 
   YAxis, 
   CartesianGrid, 
   Tooltip, 
-  ResponsiveContainer,
-  AreaChart,
-  Area
+  ResponsiveContainer 
 } from 'recharts';
-
-interface HealthData {
-  cpu: number;
-  ram: number;
-  disk: number;
-  battery: {
-    percent: number;
-    power_plugged: boolean;
-  } | null;
-}
+import { HealthData } from './types';
 
 function DashboardView() {
   const [data, setData] = useState<HealthData | null>(null);
   const [history, setHistory] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const fetchHealth = async () => {
+  const fetchData = async () => {
     try {
       const res = await fetch('http://localhost:8765/system/health');
+      if (!res.ok) throw new Error('Failed to fetch system data');
       const health = await res.json();
+      
       setData(health);
       setHistory((prev: any[]) => {
         const newHistory = [...prev, {
@@ -49,137 +39,173 @@ function DashboardView() {
         }].slice(-20); // Keep last 20 points
         return newHistory;
       });
-      setLoading(false);
+      setError(null);
     } catch (err) {
-      console.error('Failed to fetch health:', err);
+      setError('Backend unreachable. Is the server running?');
+    }
+  };
+
+  const handleKill = async (target: string | number) => {
+    try {
+      const res = await fetch('http://localhost:8765/system/processes/kill', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target })
+      });
+      if (!res.ok) {
+        const errorData = await res.json();
+        alert(`Failed to kill: ${errorData.detail}`);
+      } else {
+        // Refresh immediately
+        fetchData();
+      }
+    } catch (err) {
+      alert('Error connecting to backend.');
     }
   };
 
   useEffect(() => {
-    fetchHealth();
-    const interval = setInterval(fetchHealth, 3000);
+    fetchData();
+    const interval = setInterval(fetchData, 3000);
     return () => clearInterval(interval);
   }, []);
 
-  if (loading) {
+  if (error) {
     return (
-      <div className="dashboard-loading">
-        <RefreshCcw className="animate-spin" size={48} color="#38bdf8" />
-        <p>GATHERING SYSTEM TELEMETRY...</p>
+      <div className="dashboard-error">
+        <AlertCircle size={48} color="#ef4444" />
+        <p>{error}</p>
       </div>
     );
   }
 
+  if (!data) return <div className="loading">Initializing Dashboard...</div>;
+
   return (
     <div className="dashboard-container">
       <header className="dashboard-header">
-        <div className="title-area">
-          <Activity color="#38bdf8" size={24} />
+        <div className="header-title">
+          <Activity color="#38bdf8" />
           <h1>SYSTEM COMMAND CENTER</h1>
         </div>
-        <div className="status-badge">
-          <ShieldCheck size={16} color="#10b981" />
-          SYSTEM SECURE
-        </div>
+        <div className="status-badge">LIVE TELEMETRY</div>
       </header>
 
-      <div className="stats-grid">
-        <StatCard 
-          icon={<Cpu size={20} />} 
-          label="CPU USAGE" 
-          value={`${data?.cpu.toFixed(1)}%`} 
-          color="#38bdf8"
-          trend="OPTIMAL"
-        />
-        <StatCard 
-          icon={<Database size={20} />} 
-          label="MEMORY" 
-          value={`${data?.ram.toFixed(1)}%`} 
-          color="#a78bfa"
-          trend="STABLE"
-        />
-        <StatCard 
-          icon={<HardDrive size={20} />} 
-          label="DISK STORAGE" 
-          value={`${data?.disk.toFixed(1)}%`} 
-          color="#f472b6"
-          trend="HEALTHY"
-        />
-        <StatCard 
-          icon={<Zap size={20} />} 
-          label="POWER" 
-          value={data?.battery ? `${data.battery.percent}%` : 'A/C'} 
-          color="#fbbf24"
-          trend={data?.battery?.power_plugged ? 'CHARGING' : 'BATTERY'}
-        />
+      {/* Top Metrics Grid */}
+      <div className="metrics-grid">
+        <div className="metric-card">
+          <div className="metric-icon"><Cpu size={20} /></div>
+          <div className="metric-info">
+            <span className="label">CPU USAGE</span>
+            <span className="value">{data.cpu.toFixed(1)}%</span>
+          </div>
+          <div className="progress-bar">
+            <div className="fill" style={{ width: `${data.cpu}%`, backgroundColor: data.cpu > 80 ? '#ef4444' : '#38bdf8' }}></div>
+          </div>
+        </div>
+
+        <div className="metric-card">
+          <div className="metric-icon"><Database size={20} /></div>
+          <div className="metric-info">
+            <span className="label">RAM USAGE</span>
+            <span className="value">{data.ram.toFixed(1)}%</span>
+          </div>
+          <div className="progress-bar">
+            <div className="fill" style={{ width: `${data.ram}%`, backgroundColor: data.ram > 80 ? '#ef4444' : '#38bdf8' }}></div>
+          </div>
+        </div>
+
+        <div className="metric-card">
+          <div className="metric-icon"><HardDrive size={20} /></div>
+          <div className="metric-info">
+            <span className="label">DISK SPACE</span>
+            <span className="value">{data.disk.toFixed(1)}%</span>
+          </div>
+          <div className="progress-bar">
+            <div className="fill" style={{ width: `${data.disk}%` }}></div>
+          </div>
+        </div>
+
+        <div className="metric-card">
+          <div className="metric-icon"><BatteryIcon size={20} /></div>
+          <div className="metric-info">
+            <span className="label">BATTERY</span>
+            <span className="value">{data.battery ? `${data.battery.percent}%` : 'N/A'}</span>
+          </div>
+          <div className="progress-bar">
+            <div className="fill" style={{ 
+              width: `${data.battery?.percent || 0}%`,
+              backgroundColor: data.battery?.power_plugged ? '#10b981' : (data.battery?.percent && data.battery.percent < 20 ? '#ef4444' : '#38bdf8')
+            }}></div>
+          </div>
+        </div>
       </div>
 
-      <div className="charts-area">
-        <div className="chart-card">
-          <h3>REAL-TIME TELEMETRY (CPU & RAM)</h3>
-          <div style={{ width: '100%', height: 300 }}>
-            <ResponsiveContainer>
+      <div className="dashboard-main">
+        {/* Real-time Chart */}
+        <div className="chart-section">
+          <h3>RESOURCE HISTORY</h3>
+          <div className="chart-container">
+            <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={history}>
                 <defs>
                   <linearGradient id="colorCpu" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#38bdf8" stopOpacity={0.3}/>
                     <stop offset="95%" stopColor="#38bdf8" stopOpacity={0}/>
                   </linearGradient>
-                  <linearGradient id="colorRam" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#a78bfa" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#a78bfa" stopOpacity={0}/>
-                  </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
                 <XAxis dataKey="time" stroke="#64748b" fontSize={10} />
-                <YAxis stroke="#64748b" fontSize={10} domain={[0, 100]} />
+                <YAxis domain={[0, 100]} stroke="#64748b" fontSize={10} />
                 <Tooltip 
-                  contentStyle={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '8px' }}
-                  itemStyle={{ fontSize: '12px' }}
+                  contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', fontSize: '12px' }}
                 />
-                <Area type="monotone" dataKey="cpu" stroke="#38bdf8" fillOpacity={1} fill="url(#colorCpu)" strokeWidth={2} />
-                <Area type="monotone" dataKey="ram" stroke="#a78bfa" fillOpacity={1} fill="url(#colorRam)" strokeWidth={2} />
+                <Area type="monotone" dataKey="cpu" stroke="#38bdf8" fillOpacity={1} fill="url(#colorCpu)" />
+                <Area type="monotone" dataKey="ram" stroke="#8b5cf6" fillOpacity={0} strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        <div className="process-mini-list">
-          <h3>ACTIVE SECURITY POLICIES</h3>
-          <div className="policy-item">
-            <ShieldCheck size={14} color="#10b981" />
-            <span>ENCRYPTED SOCKET CHANNEL</span>
+        {/* Process List */}
+        <div className="process-section">
+          <div className="process-header">
+            <h3>ACTIVE PROCESSES</h3>
+            <span className="count">{data.processes?.length || 0} RUNNING</span>
           </div>
-          <div className="policy-item">
-            <ShieldCheck size={14} color="#10b981" />
-            <span>LOCAL EXECUTION GATEWAY</span>
-          </div>
-          <div className="policy-item">
-            <ShieldCheck size={14} color="#10b981" />
-            <span>IDENTITY PERSISTENCE SYNC</span>
-          </div>
-          <div className="warning-panel">
-            <AlertTriangle size={20} color="#fbbf24" />
-            <div>
-              <strong>SYSTEM NOTICE</strong>
-              <p>Hardware acceleration is enabled for maximum assistant responsiveness.</p>
-            </div>
+          <div className="process-table-container">
+            <table className="process-table">
+              <thead>
+                <tr>
+                  <th>NAME</th>
+                  <th>CPU</th>
+                  <th>MEM</th>
+                  <th>ACTION</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.processes?.map(proc => (
+                  <tr key={proc.pid}>
+                    <td className="proc-name">{proc.name}</td>
+                    <td>{proc.cpu_percent.toFixed(1)}%</td>
+                    <td>{proc.memory_percent.toFixed(1)}%</td>
+                    <td>
+                      <button 
+                        className="kill-btn" 
+                        onClick={() => handleKill(proc.pid)}
+                        title={`Terminate ${proc.name}`}
+                      >
+                        <XCircle size={14} />
+                        KILL
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-function StatCard({ icon, label, value, color, trend }: any) {
-  return (
-    <div className="stat-card">
-      <div className="stat-header">
-        <div className="stat-icon" style={{ color }}>{icon}</div>
-        <span className="stat-label">{label}</span>
-      </div>
-      <div className="stat-value">{value}</div>
-      <div className="stat-trend" style={{ color: '#64748b' }}>{trend}</div>
     </div>
   );
 }

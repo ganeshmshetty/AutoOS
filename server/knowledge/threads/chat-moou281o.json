@@ -1,0 +1,23 @@
+{
+  "id": "chat-moou281o",
+  "last_updated": "2026-05-03T02:41:36.828267",
+  "messages": [
+    {
+      "id": "jf2l1",
+      "role": "user",
+      "content": "Open yt"
+    },
+    {
+      "id": "yjeclo",
+      "role": "agent",
+      "content": "I will open your web browser and take you to the YouTube website.",
+      "type": "browser",
+      "subCategory": "web_search"
+    },
+    {
+      "id": "teioqa",
+      "role": "agent",
+      "content": "YouTube has been successfully opened."
+    }
+  ]
+}

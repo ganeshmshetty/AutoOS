@@ -164,18 +164,41 @@ def get_battery_status() -> str:
     except Exception as e:
         return f"Could not check battery: {e}"
 
-def check_wifi() -> str:
+def check_connectivity() -> str:
+    """
+    Terminal-free network diagnostic using Python's socket and requests.
+    """
+    import socket
+    import requests
+    results = []
+    
+    # 1. Check Local Gateway
     try:
-        result = subprocess.run(
-            ["netsh", "wlan", "show", "interfaces"],
-            capture_output=True, text=True, timeout=5
-        )
-        if "State" in result.stdout:
-            lines = [l for l in result.stdout.splitlines() if "State" in l or "SSID" in l or "Signal" in l]
-            return "Wi-Fi Status: " + " | ".join(l.strip() for l in lines)
-        return "Wi-Fi adapter not found or no connection."
-    except Exception as e:
-        return f"Wi-Fi check failed: {e}"
+        socket.create_connection(("8.8.8.8", 53), timeout=3)
+        results.append("✅ Internet: Connected")
+    except OSError:
+        results.append("❌ Internet: Offline")
+
+    # 2. Check Latency (Google)
+    try:
+        start = time.time()
+        requests.get("https://www.google.com", timeout=3)
+        latency = (time.time() - start) * 1000
+        results.append(f"📡 Latency: {latency:.0f}ms")
+    except:
+        results.append("📡 Latency: Timeout")
+
+    # 3. Get Local IP
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        local_ip = s.getsockname()[0]
+        results.append(f"🏠 Local IP: {local_ip}")
+        s.close()
+    except:
+        pass
+
+    return " | ".join(results)
 
 def check_bluetooth() -> str:
     try:
@@ -352,6 +375,52 @@ async def parse_and_execute_os_task(task: str, context: dict = None) -> tuple[st
         return await create_file_or_folder(item_name, folder, content, is_folder=(item_type == "folder"))
 
     # App launching & Messaging
+    # 0. Catch "open [site] on [browser]" (Cross-platform)
+    browser_launch_match = re.search(r'(?:open|launch|start|run|play)\s+(.*?)\s+(?:on|in|using)\s+(brave|chrome|edge|firefox|opera)', t)
+    if browser_launch_match:
+        target = browser_launch_match.group(1).strip()
+        browser = browser_launch_match.group(2).strip()
+        
+        # Resolve common services to URLs
+        url_map = {
+            "spotify": "https://open.spotify.com",
+            "youtube": "https://www.youtube.com",
+            "netflix": "https://www.netflix.com",
+            "whatsapp": "https://web.whatsapp.com",
+            "gmail": "https://mail.google.com",
+            "chatgpt": "https://chat.openai.com",
+            "github": "https://github.com",
+        }
+        url = url_map.get(target.lower(), target if "." in target else f"https://www.google.com/search?q={target}")
+        
+        # Launch browser with URL
+        try:
+            if browser == "brave":
+                # Try standard 'start brave', then try explicit paths
+                brave_paths = [
+                    "brave", # If in PATH
+                    r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
+                    r"C:\Program Files (x86)\BraveSoftware\Brave-Browser\Application\brave.exe",
+                    os.path.expanduser(r"~\AppData\Local\BraveSoftware\Brave-Browser\Application\brave.exe")
+                ]
+                launched = False
+                for b_path in brave_paths:
+                    try:
+                        subprocess.Popen(f'"{b_path}" "{url}"', shell=True)
+                        launched = True
+                        break
+                    except: continue
+                if not launched: os.startfile(url)
+            elif browser == "chrome":
+                subprocess.Popen(f'start chrome "{url}"', shell=True)
+            elif browser == "edge":
+                subprocess.Popen(f'start msedge "{url}"', shell=True)
+            else:
+                os.startfile(url) # Fallback to default
+            return f"Opening {target} in {browser.capitalize()}...", {"last_app": browser, "last_url": url}
+        except:
+            return f"Found the request but failed to launch {browser}. Opening in default browser instead.", {}
+
     # 1. Catch "send [message] to [name] on whatsapp" (with target)
     # Using .*? (non-greedy) for the message part
     wa_send_to_match = re.search(r'(?:send|text|message|ping|tell)\s+(.*?)\s+to\s+([a-zA-Z0-9\s._-]+)(?:\s+(?:on|in)\s+whatsapp)?', t)
@@ -396,10 +465,55 @@ async def parse_and_execute_os_task(task: str, context: dict = None) -> tuple[st
     if any(w in t for w in ["battery", "charging", "power"]):
         return get_battery_status()
     
+def kill_process(name_or_pid: str) -> str:
+    """
+    Safely terminates a process using psutil (No taskkill needed).
+    """
+    import psutil
+    count = 0
+    try:
+        # Check if PID
+        if name_or_pid.isdigit():
+            p = psutil.Process(int(name_or_pid))
+            p.terminate()
+            return f"Terminated process with PID {name_or_pid}."
+            
+        # Check by name
+        for proc in psutil.process_iter(['name']):
+            if name_or_pid.lower() in proc.info['name'].lower():
+                proc.terminate()
+                count += 1
+        
+        if count > 0:
+            return f"Successfully closed {count} instances of '{name_or_pid}'."
+        return f"No active process found named '{name_or_pid}'."
+    except Exception as e:
+        return f"Failed to kill process: {e}"
+
+async def parse_and_execute_os_task(task: str, context: dict = None) -> tuple[str, dict]:
+    t = task.lower().strip()
+    ctx = context or {}
+    new_ctx = {}
+
+    # 1. CONTEXT RESOLUTION (Pronouns)
+    # ... (rest of logic) ...
+    
+    # 2. EXECUTION LOGIC
+    # Process Management
+    if any(w in t for w in ["kill", "terminate", "close process", "force close"]):
+        # Extract app name after the verb
+        match = re.search(r'(?:kill|terminate|close|stop)\s+([a-zA-Z0-9.]+)', t)
+        if match:
+            return kill_process(match.group(1)), {"last_app": match.group(1)}
+
+    # Calculator
+    # ...
+    
+    # Wifi/Network
     if any(w in t for w in ["wifi", "wi-fi", "internet", "network", "connection"]):
         if any(w in t for w in ["turn", "on", "off", "toggle", "switch", "connect"]):
-            return open_settings("wifi")
-        return check_wifi()
+            return open_settings("wifi"), {}
+        return check_connectivity(), {}
     
     if "bluetooth" in t:
         if any(w in t for w in ["turn", "on", "off", "toggle", "switch", "connect"]):
@@ -445,14 +559,63 @@ async def browser_executor(state: AgentState, config: RunnableConfig) -> dict[st
     await emit_event(config, {"type": "step_done", "description": "Completed browser task"})
     await emit_event(config, {"type": "complete", "summary": result})
 
+    # Detect current platform for context persistence
+    new_ctx = {}
+    if "spotify.com" in str(result).lower() or "spotify" in task.lower():
+        new_ctx["last_url"] = "https://open.spotify.com"
+        new_ctx["last_app"] = "spotify"
+    elif "youtube.com" in str(result).lower() or "youtube" in task.lower():
+        new_ctx["last_url"] = "https://www.youtube.com"
+        new_ctx["last_app"] = "youtube"
+
     return {
         "result": result,
-        "messages": [{"role": "assistant", "content": f"Browser Task Result: {result}"}]
+        "messages": [{"role": "assistant", "content": f"Browser Task Result: {result}"}],
+        "context": new_ctx
     }
 
 # ─────────────────────────────────────────
 # OS EXECUTOR — Direct execution, no LLM
 # ─────────────────────────────────────────
+
+# ─────────────────────────────────────────
+# REASONING EXECUTOR
+# ─────────────────────────────────────────
+
+async def reasoning_executor(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
+    task = state.get("task", "")
+    
+    await emit_event(config, {
+        "type": "step_start",
+        "description": f"Thinking about: {task}"
+    })
+
+    try:
+        from server.agent.llm_factory import get_llm
+        llm = get_llm(temperature=0.7) # Slightly higher temperature for "creative" reasoning
+        
+        # Pull in context from Memory to help reasoning
+        ctx = state.get("context", {})
+        
+        prompt = f"""You are the Reasoning Engine of AutoOS. 
+        Current Task: {task}
+        Context: {ctx}
+        
+        Provide a clear, helpful, and accurate response. If this is a math or physics problem, show your work briefly.
+        Keep it friendly and concise."""
+        
+        response = await llm.ainvoke(prompt)
+        result = response.content
+    except Exception as e:
+        result = f"Reasoning failed: {str(e)}"
+
+    await emit_event(config, {"type": "step_done", "description": "Finished thinking."})
+    await emit_event(config, {"type": "complete", "summary": result})
+
+    return {
+        "result": result,
+        "messages": [{"role": "assistant", "content": result}]
+    }
 
 async def os_executor(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     task = state.get("task", "")

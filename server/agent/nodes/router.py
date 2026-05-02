@@ -56,6 +56,9 @@ def router(state: AgentState) -> str:
     if category == "os":
         return "os_executor"
 
+    if category == "reasoning":
+        return "reasoning_executor"
+
     # Ambiguous / low confidence / unknown ────────────────────────────────────
     logger.warning("Router could not route: sub=%s category=%s — ending", sub, category)
     return "end"

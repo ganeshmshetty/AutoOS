@@ -36,8 +36,11 @@ function App() {
   const [hitlRequest, setHitlRequest] = useState<HitlRequest | null>(null);
   const [hitlInput, setHitlInput] = useState('');
   const [activeExecutionId, setActiveExecutionId] = useState<string | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
   const ws = useRef<WebSocket | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<BlobPart[]>([]);
 
   // Auto-scroll chat
   useEffect(() => {
@@ -52,6 +55,57 @@ function App() {
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }]);
   }
+
+  const toggleRecording = async () => {
+    if (isRecording) {
+      if (mediaRecorderRef.current) mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    } else {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mediaRecorder = new MediaRecorder(stream);
+        mediaRecorderRef.current = mediaRecorder;
+        audioChunksRef.current = [];
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) audioChunksRef.current.push(event.data);
+        };
+
+        mediaRecorder.onstop = async () => {
+          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+          const formData = new FormData();
+          formData.append('audio', audioBlob, 'voice_command.wav');
+          
+          addLog('Transcribing voice command...', 'system', 'info');
+
+          try {
+            const response = await fetch('http://localhost:8765/voice/transcribe', {
+              method: 'POST',
+              body: formData,
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              if (data.text) {
+                setInput((prev) => prev ? prev + ' ' + data.text : data.text);
+              }
+            } else {
+              addLog('Failed to transcribe audio.', 'system', 'error');
+            }
+          } catch (error) {
+            addLog('Network error during transcription.', 'system', 'error');
+          } finally {
+            stream.getTracks().forEach(track => track.stop());
+          }
+        };
+
+        mediaRecorder.start();
+        setIsRecording(true);
+      } catch (error) {
+        addLog('Microphone access denied or unavailable.', 'system', 'error');
+      }
+    }
+  };
 
   const handleRun = async () => {
     if (!input.trim() || isRunning) return;
@@ -185,8 +239,9 @@ function App() {
         <button className="nav-item primary" onClick={() => {
           setCurrentView('chat');
           document.getElementById('task-input')?.focus();
+          toggleRecording();
         }}>
-          <Icons.Mic /> Voice Input
+          <Icons.Mic /> {isRecording ? 'Stop Recording' : 'Voice Input'}
         </button>
       </aside>
 
@@ -225,7 +280,13 @@ function App() {
 
             <div className="chat-input-container">
               <div className="input-box">
-                <button className="icon-btn" disabled={isRunning} aria-label="Use voice">
+                <button 
+                  className={`icon-btn ${isRecording ? 'recording' : ''}`} 
+                  disabled={isRunning} 
+                  aria-label="Use voice"
+                  onClick={toggleRecording}
+                  style={isRecording ? { color: '#dc2626' } : {}}
+                >
                   <Icons.Mic />
                 </button>
                 <input 

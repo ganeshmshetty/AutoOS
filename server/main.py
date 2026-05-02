@@ -11,6 +11,8 @@ from agent.graph import app_graph
 from agent.bus import manager, emit_event
 from dotenv import load_dotenv
 
+from routers.voice import router as voice_router
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("AutoOS")
@@ -28,6 +30,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(voice_router)
 
 class TaskRequest(BaseModel):
     task: str

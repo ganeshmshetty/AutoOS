@@ -37,10 +37,10 @@ class BrowserAutomationRunner:
         max_failures: int | None = None,
     ) -> None:
         self.headless = _env_bool("BROWSER_HEADLESS", default=False) if headless is None else headless
-        self.llm_model = llm_model or os.getenv("LLM_MODEL", "gemini-3.1-flash-lite-preview")
+        self.llm_model = llm_model or os.getenv("LLM_MODEL", "gemini-1.5-flash")
         self.page_extraction_model = page_extraction_model or os.getenv(
             "BROWSER_PAGE_EXTRACTION_MODEL",
-            "gemini-3.1-flash-lite-preview",
+            "gemini-1.5-flash",
         )
         self.use_cloud = _env_bool("BROWSER_USE_CLOUD", default=False) if use_cloud is None else use_cloud
         self.max_actions_per_step = max_actions_per_step or int(os.getenv("BROWSER_MAX_ACTIONS_PER_STEP", "3"))
@@ -92,13 +92,13 @@ class BrowserAutomationRunner:
             return Browser(
                 headless=self.headless,
                 executable_path=executable_path,
-                keep_alive=_env_bool("BROWSER_KEEP_ALIVE", default=False),
+                keep_alive=_env_bool("BROWSER_KEEP_ALIVE", default=True),
             )
 
         logger.info("No system Chrome/Chromium found; browser-use will use its default browser.")
         return Browser(
             headless=self.headless,
-            keep_alive=_env_bool("BROWSER_KEEP_ALIVE", default=False),
+            keep_alive=_env_bool("BROWSER_KEEP_ALIVE", default=True),
         )
 
     async def run_task(

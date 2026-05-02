@@ -1,40 +1,50 @@
-import os
-import asyncio
-import pyautogui
+"""
+desktop_tool.py — OS task dispatcher for AutoOS.
+Routes to the correct module based on sub_category.
+"""
+from __future__ import annotations
+
 import logging
-from typing import Optional
 
 logger = logging.getLogger("AutoOS.desktop")
 
-async def run_os_task(task: str, mode: str = "auto") -> str:
-    """
-    Executes a desktop automation task.
-    Modes:
-    - 'simple': Uses PyAutoGUI for basic inputs
-    - 'complex': Uses Agent-S for visual navigation (not fully implemented)
-    - 'auto': Decides based on task complexity
-    """
-    logger.info(f"Executing OS task: {task}")
 
-    # For MVP, we use a hybrid approach
-    if "open" in task.lower() or "launch" in task.lower():
-        return await _launch_app_simple(task)
-    
-    # Placeholder for Agent-S complex visual tasks
-    return f"OS Task '{task}' recognized. Complex visual navigation via Agent-S is ready for implementation by Person 1."
+async def run_os_task(
+    task: str,
+    sub_category: str = "unknown",
+    entities: list[str] | None = None,
+    action_params: dict | None = None,
+) -> str:
+    entities = entities or []
+    action_params = action_params or {}
+    logger.info(
+        "OS dispatch: sub=%s entities=%s params=%s",
+        sub_category, entities, action_params
+    )
 
-async def _launch_app_simple(task: str) -> str:
-    """Uses PyAutoGUI to launch an app via the Start menu."""
-    try:
-        # Extract app name (naive)
-        app_name = task.replace("open", "").replace("launch", "").strip()
-        
-        pyautogui.press('win')
-        await asyncio.sleep(0.5)
-        pyautogui.typewrite(app_name)
-        await asyncio.sleep(1.0)
-        pyautogui.press('enter')
-        
-        return f"Successfully attempted to launch {app_name} via PyAutoGUI."
-    except Exception as e:
-        return f"Failed to launch app: {str(e)}"
+    match sub_category:
+        case "app_launch":
+            from server.agent.modules import app_module
+            return await app_module.run(task, entities, action_params)
+        case "file_ops":
+            from server.agent.modules import file_module
+            return await file_module.run(task, entities, action_params)
+        case "hardware":
+            from server.agent.modules import hardware_module
+            return await hardware_module.run(task, entities, action_params)
+        case "settings":
+            from server.agent.modules import settings_module
+            return await settings_module.run(task, entities, action_params)
+        case "process_mgmt":
+            from server.agent.modules import process_module
+            return await process_module.run(task, entities, action_params)
+        case "security":
+            from server.agent.modules import security_module
+            return await security_module.run(task, entities, action_params)
+        case "diagnostics":
+            from server.agent.modules import diag_module
+            return await diag_module.run(task, entities, action_params)
+        case _:
+            logger.warning("Unknown sub_category '%s', trying app_launch", sub_category)
+            from server.agent.modules import app_module
+            return await app_module.run(task, entities, action_params)

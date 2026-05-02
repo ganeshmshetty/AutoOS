@@ -1,0 +1,180 @@
+"""
+app_module.py — Smart application launcher for AutoOS.
+
+Uses action_params.search_aliases from the planner for precise matching.
+
+Strategy (in priority order):
+  1. Windows Registry App Paths
+  2. Direct .exe search using search_aliases across common install dirs
+  3. Start Menu / Desktop shortcut (.lnk) search
+  4. Shell Execute with the clean app name
+  5. Clipboard-paste into Start Menu (avoids typewrite char-by-char bug)
+"""
+from __future__ import annotations
+
+import asyncio
+import logging
+import os
+import subprocess
+import winreg
+from pathlib import Path
+
+import pyautogui
+
+logger = logging.getLogger("AutoOS.app_module")
+
+_SEARCH_ROOTS = [
+    Path(os.environ.get("PROGRAMFILES", r"C:\Program Files")),
+    Path(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)")),
+    Path(os.environ.get("LOCALAPPDATA", "")) / "Programs",
+    Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs",
+    Path(r"C:\ProgramData\Microsoft\Windows\Start Menu\Programs"),
+    Path(os.path.expanduser("~")) / "Desktop",
+    Path(os.path.expanduser("~")) / "AppData" / "Local",
+]
+
+
+async def run(task: str, entities: list[str], action_params: dict) -> str:
+    # Prefer structured params from the planner
+    app_name: str = action_params.get("app_name") or (entities[0] if entities else task)
+    aliases: list[str] = action_params.get("search_aliases") or [app_name]
+
+    logger.info("Launching app: %r aliases=%s", app_name, aliases)
+
+    strategies = [
+        lambda: _try_registry(aliases),
+        lambda: _try_direct_search(aliases),
+        lambda: _try_shortcut_search(aliases),
+        lambda: _try_shell_execute(app_name, aliases),
+        lambda: _try_start_menu_search(app_name),
+    ]
+
+    for strategy in strategies:
+        result = await strategy()
+        if result["success"]:
+            logger.info("Launch succeeded via %s", result.get("method", "unknown"))
+            return result["message"]
+
+    return (
+        f"Could not find '{app_name}' on your computer. "
+        "Make sure it is installed and try again."
+    )
+
+
+async def _try_registry(aliases: list[str]) -> dict:
+    for alias in aliases:
+        exe = alias if alias.lower().endswith(".exe") else alias + ".exe"
+        for hive in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+            try:
+                key_path = rf"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{exe}"
+                with winreg.OpenKey(hive, key_path) as key:
+                    exe_path, _ = winreg.QueryValueEx(key, "")
+                    if exe_path and Path(exe_path).exists():
+                        subprocess.Popen([exe_path], shell=False)
+                        return {
+                            "success": True, "method": "registry",
+                            "message": f"Launched {aliases[0]} successfully.",
+                        }
+            except FileNotFoundError:
+                continue
+            except Exception as exc:
+                logger.debug("Registry key error: %s", exc)
+    return {"success": False}
+
+
+async def _try_direct_search(aliases: list[str]) -> dict:
+    """Walk install dirs looking for exes matching any alias."""
+    terms = [a.lower().replace(" ", "").replace("-", "").replace("_", "") for a in aliases]
+    candidates: list[Path] = []
+
+    for root in _SEARCH_ROOTS:
+        if not root.exists():
+            continue
+        try:
+            for exe in root.rglob("*.exe"):
+                stem = exe.stem.lower().replace(" ", "").replace("-", "").replace("_", "")
+                if any(t in stem or stem in t for t in terms):
+                    candidates.append(exe)
+        except PermissionError:
+            continue
+
+    if not candidates:
+        return {"success": False}
+
+    best = min(candidates, key=lambda p: len(str(p)))
+    logger.debug("Direct search matched: %s", best)
+    subprocess.Popen([str(best)], shell=False)
+    return {
+        "success": True, "method": "direct_search",
+        "message": f"Launched {aliases[0]} from {best.parent.name}.",
+    }
+
+
+async def _try_shortcut_search(aliases: list[str]) -> dict:
+    terms = [a.lower() for a in aliases]
+    shortcut_roots = [
+        Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu",
+        Path(r"C:\ProgramData\Microsoft\Windows\Start Menu"),
+        Path(os.path.expanduser("~")) / "Desktop",
+        Path(r"C:\Users\Public\Desktop"),
+    ]
+    for root in shortcut_roots:
+        if not root.exists():
+            continue
+        try:
+            for lnk in root.rglob("*.lnk"):
+                stem_lower = lnk.stem.lower()
+                if any(t in stem_lower for t in terms):
+                    os.startfile(str(lnk))
+                    return {
+                        "success": True, "method": "shortcut",
+                        "message": f"Launched {aliases[0]} via shortcut.",
+                    }
+        except Exception as exc:
+            logger.debug("Shortcut search error: %s", exc)
+    return {"success": False}
+
+
+async def _try_shell_execute(app_name: str, aliases: list[str]) -> dict:
+    candidates = [app_name] + aliases + [
+        app_name.lower().replace(" ", "") + ".exe",
+        app_name.lower().replace(" ", "-") + ".exe",
+    ]
+    for candidate in candidates:
+        try:
+            subprocess.Popen(candidate, shell=True)
+            await asyncio.sleep(1.0)
+            return {
+                "success": True, "method": "shell_execute",
+                "message": f"Launched {app_name}.",
+            }
+        except Exception as exc:
+            logger.debug("Shell execute '%s' failed: %s", candidate, exc)
+    return {"success": False}
+
+
+async def _try_start_menu_search(app_name: str) -> dict:
+    """Last resort: clipboard paste into Start Menu (avoids typewrite bug)."""
+    import tkinter as tk
+    try:
+        root_tk = tk.Tk()
+        root_tk.withdraw()
+        root_tk.clipboard_clear()
+        root_tk.clipboard_append(app_name)
+        root_tk.update()
+
+        pyautogui.press("win")
+        await asyncio.sleep(0.7)
+        pyautogui.hotkey("ctrl", "v")
+        await asyncio.sleep(1.2)
+        pyautogui.press("enter")
+        await asyncio.sleep(0.5)
+        root_tk.destroy()
+
+        return {
+            "success": True, "method": "start_menu",
+            "message": f"Searched Start Menu for '{app_name}' and launched the top result.",
+        }
+    except Exception as exc:
+        logger.warning("Start Menu fallback failed: %s", exc)
+        return {"success": False}

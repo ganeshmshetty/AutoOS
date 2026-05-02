@@ -77,6 +77,19 @@ button:disabled {
   cursor: not-allowed;
 }
 
+.btn-stop {
+  background-color: transparent;
+  border: 1.5px solid #f87171;
+  color: #f87171;
+  padding: 0.8rem 1.6rem;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.btn-stop:hover {
+  background-color: #f87171;
+  color: #fff;
+}
+
 .status-log {
   margin-top: 2rem;
   text-align: left;
@@ -98,3 +111,72 @@ button:disabled {
 .type-browser { color: #38bdf8; }
 .type-os { color: #f472b6; }
 .type-info { color: #94a3b8; }
+.type-plan { color: #a78bfa; font-style: italic; }
+.type-error { color: #f87171; }
+
+/* Classification banner ─────────────────────────────────────────────────── */
+.classification-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin: 1.25rem 0 0;
+  padding: 0.9rem 1.2rem;
+  border-radius: 0.75rem;
+  border-left: 4px solid;
+  text-align: left;
+  animation: slideIn 0.25s ease;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.badge-browser {
+  background: rgba(56, 189, 248, 0.08);
+  border-color: #38bdf8;
+}
+
+.badge-os {
+  background: rgba(244, 114, 182, 0.08);
+  border-color: #f472b6;
+}
+
+.badge-warn {
+  background: rgba(251, 191, 36, 0.08);
+  border-color: #fbbf24;
+}
+
+.banner-left {
+  flex: 1;
+  min-width: 0;
+}
+
+.badge-label {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #e2e8f0;
+  letter-spacing: 0.01em;
+}
+
+.badge-plan {
+  margin-top: 0.25rem;
+  font-size: 0.95rem;
+  color: #cbd5e1;
+}
+
+.hitl-warning {
+  margin-left: auto;
+  background: rgba(251, 191, 36, 0.12);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  border-radius: 0.4rem;
+  padding: 0.2rem 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  align-self: center;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+

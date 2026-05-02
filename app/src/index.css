@@ -1,11 +1,11 @@
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
+  font-family: 'Outfit', Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.6;
   font-weight: 400;
 
   color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #0f172a;
+  color: #f8fafc;
+  background-color: #020617;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -19,82 +19,140 @@ body {
   place-items: center;
   min-width: 320px;
   min-height: 100vh;
+  background: radial-gradient(circle at top right, #1e1b4b, #020617);
 }
 
 #root {
   width: 100%;
-  max-width: 1280px;
+  max-width: 900px;
   margin: 0 auto;
   padding: 2rem;
   text-align: center;
 }
 
 .card {
-  padding: 2em;
-  background: rgba(30, 41, 59, 0.7);
-  backdrop-filter: blur(10px);
-  border-radius: 1.5rem;
+  padding: 3rem;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border-radius: 2rem;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
+  margin-bottom: 2rem;
 }
 
 input {
   width: 100%;
-  padding: 1.2rem;
-  border-radius: 0.75rem;
-  border: 1px solid #334155;
-  background: #1e293b;
-  color: white;
-  font-size: 1.1rem;
-  margin-bottom: 1rem;
+  padding: 1.5rem;
+  border-radius: 1rem;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  background: rgba(2, 6, 23, 0.5);
+  color: #f1f5f9;
+  font-size: 1.4rem;
+  margin-bottom: 1.5rem;
   outline: none;
-  transition: border-color 0.2s;
+  transition: all 0.3s ease;
+  box-sizing: border-box;
 }
 
 input:focus {
   border-color: #38bdf8;
+  background: rgba(2, 6, 23, 0.8);
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.2);
+}
+
+.button-group {
+  display: flex;
+  gap: 1.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
 }
 
 button {
-  border-radius: 0.75rem;
-  border: 1px solid transparent;
-  padding: 0.8rem 2rem;
-  font-size: 1rem;
-  font-weight: 600;
+  border-radius: 1rem;
+  border: none;
+  padding: 1rem 2.5rem;
+  font-size: 1.2rem;
+  font-weight: 700;
   font-family: inherit;
-  background-color: #0ea5e9;
+  background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
   color: white;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
 }
 
-button:hover {
-  background-color: #0284c7;
+button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4);
+  filter: brightness(1.1);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 button:disabled {
-  background-color: #334155;
+  background: #334155;
   cursor: not-allowed;
+  opacity: 0.7;
+}
+
+button.secondary {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+}
+
+button.secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .status-log {
   margin-top: 2rem;
   text-align: left;
-  max-height: 300px;
+  max-height: 400px;
   overflow-y: auto;
-  padding: 1rem;
-  background: #020617;
-  border-radius: 0.5rem;
-  font-family: 'Fira Code', monospace;
-  font-size: 0.9rem;
+  padding: 1.5rem;
+  background: rgba(2, 6, 23, 0.8);
+  border-radius: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  font-family: 'Inter', sans-serif;
+  font-size: 1.1rem;
 }
 
 .status-entry {
-  margin-bottom: 0.5rem;
-  border-left: 2px solid #38bdf8;
-  padding-left: 0.75rem;
+  margin-bottom: 0.8rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 0.75rem;
+  border-left: 4px solid #38bdf8;
+  animation: slideIn 0.3s ease-out;
 }
 
-.type-browser { color: #38bdf8; }
-.type-os { color: #f472b6; }
-.type-info { color: #94a3b8; }
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.type-browser { border-left-color: #38bdf8; color: #7dd3fc; }
+.type-os { border-left-color: #f472b6; color: #fbcfe8; }
+.type-info { border-left-color: #94a3b8; color: #cbd5e1; }
+.type-error { border-left-color: #ef4444; color: #fca5a5; }
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}

@@ -87,7 +87,10 @@
 * Translate webpage to regional language
 * Read page aloud
 
-### Finance & Gov Services
+### Finance & Gov Services [SUSPENDED]
+
+> [!CAUTION]
+> **This section is currently SUSPENDED due to Data Privacy concerns.** AutoOS will not automate sensitive credential entry or document access for these services in the current version.
 
 * DigiLocker / Aadhaar document access
 * UPI / payment app guidance

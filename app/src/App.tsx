@@ -86,37 +86,59 @@ function App() {
 
   return (
     <div className="container">
-      <h1 style={{ marginBottom: '0.5rem', color: '#38bdf8' }}>AutoOS Gateway</h1>
-      <p style={{ marginBottom: '2rem', color: '#94a3b8' }}>Unified AI Control for Web & Desktop</p>
+      <header style={{ marginBottom: '3rem' }}>
+        <h1 style={{ fontSize: '3.5rem', fontWeight: 800, marginBottom: '0.5rem', background: 'linear-gradient(to right, #38bdf8, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+          AutoOS
+        </h1>
+        <p style={{ fontSize: '1.2rem', color: '#94a3b8', letterSpacing: '0.05em' }}>
+          INTELLIGENT DESKTOP COMPANION
+        </p>
+      </header>
 
       <div className="card">
         <input 
           type="text" 
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="What would you like me to do? (e.g. 'Check my email' or 'Open Notepad')"
+          placeholder="How can I help you today?"
           disabled={isRunning}
           onKeyDown={(e) => e.key === 'Enter' && handleRun()}
         />
-        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+        <div className="button-group">
           <button onClick={handleRun} disabled={isRunning || !input}>
             {isRunning ? 'Running...' : 'Execute Task'}
+          </button>
+          <button className="secondary" disabled={isRunning}>
+            🎤 Voice Control
           </button>
         </div>
       </div>
 
       {logs.length > 0 && (
         <div className="status-log">
-          <div style={{ paddingBottom: '0.5rem', borderBottom: '1px solid #334155', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ fontWeight: 'bold' }}>Status: {status}</span>
-            <span style={{ color: '#94a3b8' }}>Execution Log</span>
+          <div style={{ paddingBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontWeight: 700, fontSize: '1.2rem', color: '#38bdf8' }}>
+              {isRunning ? '● ' : ''}Status: {status}
+            </span>
+            <span style={{ color: '#64748b', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+              Activity Feed
+            </span>
           </div>
-          {logs.map((log, i) => (
-            <div key={i} className={`status-entry type-${log.type}`}>
-              <span style={{ color: '#64748b', fontSize: '0.8rem', marginRight: '0.5rem' }}>[{log.timestamp}]</span>
-              {log.message}
-            </div>
-          ))}
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {logs.map((log, i) => (
+              <div key={i} className={`status-entry type-${log.type}`}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                  <span style={{ fontWeight: 600, fontSize: '0.8rem', opacity: 0.8, textTransform: 'uppercase' }}>
+                    {log.type}
+                  </span>
+                  <span style={{ color: '#64748b', fontSize: '0.8rem' }}>
+                    {log.timestamp}
+                  </span>
+                </div>
+                {log.message}
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

@@ -33,11 +33,17 @@ async def planner(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     prompt = f"""
     You are the AutoOS Gateway Planner. Your job is to classify user requests into two categories:
     1. 'browser': Any task that requires navigating the web, searching online, or interacting with a website.
-    2. 'os': Any task that involves local files, system settings, desktop applications (other than a browser), or system diagnostics.
+    2. 'os': Any task that involves local files, system settings, hardware troubleshooting, or desktop applications.
+    
+    Specific OS tasks you should recognize:
+    - File management (searching, finding recent files, downloads)
+    - Hardware troubleshooting (printer issues, Wi-Fi, USB drives)
+    - Accessibility settings (font size, high contrast, magnifier)
+    - System health (storage alerts, security updates)
 
     User Request: "{task}"
 
-    Classify this request.
+    Classify this request and provide brief reasoning.
     """
 
     prediction = await structured_llm.ainvoke(prompt)

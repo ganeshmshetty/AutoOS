@@ -3,6 +3,7 @@ import asyncio
 from langchain_core.runnables import RunnableConfig
 from server.agent.state import AgentState
 from server.agent.tools.browser_tool import run_browser_task
+from server.agent.tools.desktop_tool import run_os_task
 from server.agent.bus import emit_event
 
 async def browser_executor(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
@@ -29,25 +30,17 @@ async def browser_executor(state: AgentState, config: RunnableConfig) -> dict[st
 
 async def os_executor(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     """
-    Placeholder for OS-based task execution (Agent-S).
+    Executes the OS-based task using desktop tools.
     """
     task = state.get("task", "")
     await emit_event(config, {"type": "step_start", "description": f"Starting OS task: {task}"})
     
-    # Simple PyAutoGUI demo
-    import pyautogui
-    pyautogui.press('win')
-    await asyncio.sleep(1)
-    pyautogui.typewrite('Notepad')
-    await asyncio.sleep(1)
-    pyautogui.press('enter')
-    
-    result = "Launched Notepad as a demo of OS control."
+    result = await run_os_task(task)
     
     await emit_event(config, {"type": "step_done", "description": f"Completed OS task"})
     await emit_event(config, {"type": "complete", "summary": result})
     
     return {
         "result": result,
-        "messages": [{"role": "assistant", "content": "OS Request detected. Demo action performed."}]
+        "messages": [{"role": "assistant", "content": f"OS Task Result: {result}"}]
     }

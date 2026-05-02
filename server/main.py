@@ -15,8 +15,8 @@ from dotenv import load_dotenv
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("AutoOS")
 
-load_dotenv(Path(__file__).with_name(".env"))
-load_dotenv()
+load_dotenv(Path(__file__).with_name(".env"), override=True)
+load_dotenv(override=True)
 
 app = FastAPI(title="AutoOS Gateway API")
 

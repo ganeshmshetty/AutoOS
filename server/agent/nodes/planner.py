@@ -9,7 +9,7 @@ class Classification(BaseModel):
     next_action: str = Field(description="The classification of the task: 'browser' or 'os'")
     reasoning: str = Field(description="Brief reasoning for the classification")
 
-def planner(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
+async def planner(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     """
     Analyzes the task and decides if it's a Browser or OS request.
     """
@@ -18,14 +18,13 @@ def planner(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
         return {"next_action": "end", "result": "No task provided"}
 
     # Initialize LLM
-    # Note: In a real scenario, we'd pull from LLM_API_KEYS and rotate.
-    # For now, we'll assume GOOGLE_API_KEY is set or use the first key.
     api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key and os.getenv("LLM_API_KEYS"):
         api_key = os.getenv("LLM_API_KEYS").split(",")[0]
 
+    model_name = os.getenv("LLM_MODEL", "gemini-3.1-flash-lite-preview")
     llm = ChatGoogleGenerativeAI(
-        model=os.getenv("LLM_MODEL", "gemini-3.1-flash-lite"),
+        model=model_name,
         google_api_key=api_key
     )
 
@@ -41,17 +40,14 @@ def planner(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     Classify this request.
     """
 
-    prediction = structured_llm.invoke(prompt)
+    prediction = await structured_llm.ainvoke(prompt)
     
-    # Emit event if we have a config with manager
+    # Emit event
     from server.agent.bus import emit_event
-    import asyncio
-    
-    loop = asyncio.get_event_loop()
-    loop.create_task(emit_event(config, {
+    await emit_event(config, {
         "type": "classification",
         "category": prediction.next_action
-    }))
+    })
 
     return {
         "next_action": prediction.next_action,

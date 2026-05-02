@@ -6,6 +6,8 @@ __pycache__/
 .venv/
 venv/
 server/.venv/
+python_backend/
+backend/venv/
 
 # Python caches and tools
 .mypy_cache/

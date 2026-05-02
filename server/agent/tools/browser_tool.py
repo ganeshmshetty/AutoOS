@@ -219,6 +219,8 @@ def _find_chromium_executable() -> str | None:
             Path(program_files) / "Google" / "Chrome" / "Application" / "chrome.exe",
             Path(program_files_x86) / "Google" / "Chrome" / "Application" / "chrome.exe",
             Path(local_app) / "Google" / "Chrome" / "Application" / "chrome.exe",
+            Path(program_files_x86) / "Microsoft" / "Edge" / "Application" / "msedge.exe",
+            Path(program_files) / "Microsoft" / "Edge" / "Application" / "msedge.exe",
         ]
         for candidate in candidates:
             if candidate.exists():

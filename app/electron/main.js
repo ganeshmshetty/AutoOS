@@ -6,13 +6,46 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 let mainWindow = null;
+let pendingDeepLink = null;
 
-// Register custom protocol
+// Register custom protocol (with dev mode support for macOS)
 if (!app.isDefaultProtocolClient('autoos')) {
-  app.setAsDefaultProtocolClient('autoos');
+  if (process.defaultApp && process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient('autoos', process.execPath, [path.resolve(process.argv[1])]);
+  } else {
+    app.setAsDefaultProtocolClient('autoos');
+  }
 }
 
-function createWindow() {
+function getBaseURL() {
+  if (process.env.NODE_ENV === 'development' || !app.isPackaged) {
+    return 'http://localhost:5173';
+  }
+  return null; // will use loadFile instead
+}
+
+// Convert autoos://share?blob=XXX into http://localhost:5173/?blob=XXX
+function deepLinkToAppURL(deepLink) {
+  try {
+    const parsed = new URL(deepLink);
+    const blob = parsed.searchParams.get('blob');
+    const data = parsed.searchParams.get('data');
+    
+    const base = getBaseURL();
+    if (base) {
+      const params = new URLSearchParams();
+      if (blob) params.set('blob', blob);
+      if (data) params.set('data', data);
+      return `${base}/?${params.toString()}`;
+    }
+    return null;
+  } catch (e) {
+    console.error('Failed to parse deep link:', e);
+    return null;
+  }
+}
+
+function createWindow(deepLink) {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -41,40 +74,38 @@ function createWindow() {
     };
   });
 
-  // In development, load from Vite dev server
+  // If we have a deep link, load the app with query params
+  const appURL = deepLink ? deepLinkToAppURL(deepLink) : null;
+  
   if (process.env.NODE_ENV === 'development' || !app.isPackaged) {
-    mainWindow.loadURL('http://localhost:5173');
-    // mainWindow.webContents.openDevTools();
+    mainWindow.loadURL(appURL || 'http://localhost:5173');
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 }
 
-// Handle deep links on macOS
-let initialDeepLink = null;
-
-import { ipcMain } from 'electron';
-
-ipcMain.handle('get-initial-deep-link', () => {
-  const link = initialDeepLink;
-  initialDeepLink = null;
-  return link;
-});
-
+// Catch deep links that arrive BEFORE the app is ready
 app.on('open-url', (event, url) => {
   event.preventDefault();
   
-  if (mainWindow && !mainWindow.webContents.isLoading()) {
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.focus();
-    mainWindow.webContents.send('deep-link', url);
+  if (mainWindow) {
+    // App is already open — just navigate
+    const appURL = deepLinkToAppURL(url);
+    if (appURL) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+      mainWindow.loadURL(appURL);
+    }
   } else {
-    initialDeepLink = url;
+    // App not ready yet — store for later
+    pendingDeepLink = url;
   }
 });
 
 app.whenReady().then(() => {
-  createWindow();
+  // Use pending deep link if one arrived before ready
+  createWindow(pendingDeepLink);
+  pendingDeepLink = null;
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

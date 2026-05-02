@@ -70,8 +70,41 @@ async def open_application(app_name: str) -> dict:
                 return {"success": False, "message": f"Could not open '{app_name}': {error}"}
 
         elif SYSTEM == "Windows":
-            subprocess.Popen(f"start {app_name}", shell=True)
-            return {"success": True, "message": f"Opened {app_name}"}
+            # Windows app name mappings
+            app_map = {
+                "chrome": "chrome",
+                "google chrome": "chrome",
+                "edge": "msedge",
+                "microsoft edge": "msedge",
+                "firefox": "firefox",
+                "notepad": "notepad",
+                "calculator": "calc",
+                "calc": "calc",
+                "paint": "mspaint",
+                "word": "winword",
+                "excel": "excel",
+                "powerpoint": "powerpnt",
+                "outlook": "outlook",
+                "terminal": "wt",
+                "cmd": "cmd",
+                "powershell": "powershell",
+                "vscode": "code",
+                "visual studio code": "code",
+                "code": "code",
+                "slack": "slack",
+                "discord": "discord",
+                "spotify": "spotify",
+            }
+
+            resolved_name = app_map.get(app_name.lower(), app_name)
+            
+            # Use 'start' with an empty title to handle spaces and aliases
+            # Using subprocess.Popen with shell=True is the most reliable way to use 'start'
+            try:
+                subprocess.Popen(f'start "" "{resolved_name}"', shell=True)
+                return {"success": True, "message": f"Opened {resolved_name}"}
+            except Exception as e:
+                return {"success": False, "message": f"Could not open '{app_name}': {str(e)}"}
 
         else:
             process = await asyncio.create_subprocess_exec(
@@ -142,11 +175,22 @@ async def get_clipboard() -> dict:
             text = stdout.decode("utf-8", errors="replace")
             return {"success": True, "content": text}
         elif SYSTEM == "Windows":
-            result = subprocess.run(
-                ["powershell", "-command", "Get-Clipboard"],
-                capture_output=True, text=True, timeout=5,
+            import base64
+            script = "[Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes((Get-Clipboard -Raw)))"
+            process = await asyncio.create_subprocess_exec(
+                "powershell", "-Command", script,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
             )
-            return {"success": True, "content": result.stdout.strip()}
+            stdout, _ = await process.communicate()
+            try:
+                encoded = stdout.decode().strip()
+                if not encoded:
+                    return {"success": True, "content": ""}
+                text = base64.b64decode(encoded).decode("utf-16-le")
+                return {"success": True, "content": text}
+            except Exception as e:
+                return {"success": False, "content": "", "error": f"Failed to decode clipboard: {str(e)}"}
         else:
             result = subprocess.run(
                 ["xclip", "-selection", "clipboard", "-o"],
@@ -168,10 +212,15 @@ async def set_clipboard(text: str) -> dict:
             await process.communicate(input=text.encode("utf-8"))
             return {"success": True, "message": "Text copied to clipboard"}
         elif SYSTEM == "Windows":
-            subprocess.run(
-                ["powershell", "-command", f"Set-Clipboard -Value '{text}'"],
-                timeout=5,
+            import base64
+            encoded_text = base64.b64encode(text.encode("utf-16-le")).decode("ascii")
+            script = f"$text = [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String('{encoded_text}')); Set-Clipboard -Value $text"
+            process = await asyncio.create_subprocess_exec(
+                "powershell", "-Command", script,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
             )
+            await process.communicate()
             return {"success": True, "message": "Text copied to clipboard"}
         else:
             process = subprocess.Popen(
@@ -199,16 +248,26 @@ async def send_notification(title: str, message: str) -> dict:
             await process.communicate()
             return {"success": True, "message": f"Notification sent: {title}"}
         elif SYSTEM == "Windows":
+            import base64
+            encoded_title = base64.b64encode(title.encode("utf-16-le")).decode("ascii")
+            encoded_message = base64.b64encode(message.encode("utf-16-le")).decode("ascii")
             ps_script = f"""
+            $title = [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String('{encoded_title}'))
+            $message = [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String('{encoded_message}'))
             [void] [System.Reflection.Assembly]::LoadWithPartialName("System.Windows.Forms")
             $notification = New-Object System.Windows.Forms.NotifyIcon
             $notification.Icon = [System.Drawing.SystemIcons]::Information
-            $notification.BalloonTipTitle = "{title}"
-            $notification.BalloonTipText = "{message}"
+            $notification.BalloonTipTitle = $title
+            $notification.BalloonTipText = $message
             $notification.Visible = $True
             $notification.ShowBalloonTip(5000)
             """
-            subprocess.Popen(["powershell", "-command", ps_script])
+            process = await asyncio.create_subprocess_exec(
+                "powershell", "-Command", ps_script,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            await process.communicate()
             return {"success": True, "message": f"Notification sent: {title}"}
         else:
             process = await asyncio.create_subprocess_exec(
@@ -342,7 +401,7 @@ async def open_url(url: str) -> dict:
             process = await asyncio.create_subprocess_exec("open", url)
             await process.communicate()
         elif SYSTEM == "Windows":
-            subprocess.Popen(f"start {url}", shell=True)
+            subprocess.Popen(f'start "" "{url}"', shell=True)
         else:
             process = await asyncio.create_subprocess_exec("xdg-open", url)
             await process.communicate()

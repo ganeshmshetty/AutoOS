@@ -283,7 +283,7 @@ function App({ sharedWorkflowId, sharedData, sharedBlobId }: { sharedWorkflowId?
     if (view === 'library') fetchWorkflows()
   }, [view])
 
-  // Handle shared workflow link from normal query params (browser fallback)
+  // Handle shared workflow link from normal query params (browser fallback and new native deep linking)
   useEffect(() => {
     if (sharedBlobId) {
       fetch(`https://jsonblob.com/api/jsonBlob/${sharedBlobId}`)
@@ -308,49 +308,6 @@ function App({ sharedWorkflowId, sharedData, sharedBlobId }: { sharedWorkflowId?
         .catch(console.error)
     }
   }, [sharedWorkflowId, sharedData, sharedBlobId])
-
-  // Handle native deep links (autoos://)
-  useEffect(() => {
-    // @ts-ignore
-    if (window.electronAPI) {
-      
-      const processUrl = (url: string) => {
-        try {
-          const parsed = new URL(url);
-          const blob = parsed.searchParams.get('blob');
-          const data = parsed.searchParams.get('data');
-          
-          if (blob) {
-            fetch(`https://jsonblob.com/api/jsonBlob/${blob}`)
-              .then(res => res.json())
-              .then(wf => { if (wf && wf.name) setSharedWorkflow(wf) })
-              .catch(console.error);
-          } else if (data) {
-            const wf = JSON.parse(decodeURIComponent(atob(data)));
-            if (wf && wf.name) setSharedWorkflow(wf);
-          }
-        } catch (err) {
-          console.error("Failed to process deep link", err);
-        }
-      };
-
-      // 1. Check if there is an initial URL waiting for us from app launch
-      // @ts-ignore
-      if (window.electronAPI.invoke) {
-        // @ts-ignore
-        window.electronAPI.invoke('get-initial-deep-link').then((url) => {
-          if (url) processUrl(url);
-        });
-      }
-
-      // 2. Listen for any future URLs while the app is already open
-      // @ts-ignore
-      if (window.electronAPI.onMessage) {
-        // @ts-ignore
-        window.electronAPI.onMessage('deep-link', processUrl);
-      }
-    }
-  }, []);
 
   // Broadcast state updates and open window
   const popupRef = useRef<Window | null>(null)
@@ -918,11 +875,14 @@ function App({ sharedWorkflowId, sharedData, sharedBlobId }: { sharedWorkflowId?
                 let cmd = sharedWorkflow.description || sharedWorkflow.name;
                 if (sharedWorkflow.source === 'extension' && sharedWorkflow.events) {
                   cmd = `Execute this exact browser workflow: ${JSON.stringify(sharedWorkflow.events)}`;
+                } else if (sharedWorkflow.steps && sharedWorkflow.steps.length > 0) {
+                  cmd += `\n\nContext from previous successful run:\n` + JSON.stringify(sharedWorkflow.steps);
                 }
-                setInput(cmd);
                 setSharedWorkflow(null);
+                setView('chat');
+                run(cmd);
               }}>
-                Load Workflow
+                Run Workflow
               </button>
             </div>
           </div>

@@ -6,7 +6,7 @@ import './App.css'
 const Icons = {
   Chat: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>,
   Folder: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>,
-  Settings: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 0 9.4a1.65 1.65 0 0 0-1.82.33l2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>,
+  Settings: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82V15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>,
   Mic: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>,
   Send: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>,
   Globe: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>,
@@ -36,6 +36,12 @@ function App() {
   const [hitlRequest, setHitlRequest] = useState<HitlRequest | null>(null);
   const [hitlInput, setHitlInput] = useState('');
   const [activeExecutionId, setActiveExecutionId] = useState<string | null>(null);
+  
+  // Voice State
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorder = useRef<MediaRecorder | null>(null);
+  const audioChunks = useRef<Blob[]>([]);
+  
   const ws = useRef<WebSocket | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
@@ -51,6 +57,54 @@ function App() {
       message,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }]);
+  }
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      mediaRecorder.current = new MediaRecorder(stream)
+      audioChunks.current = []
+
+      mediaRecorder.current.ondataavailable = (event) => {
+        audioChunks.current.push(event.data)
+      }
+
+      mediaRecorder.current.onstop = async () => {
+        const audioBlob = new Blob(audioChunks.current, { type: 'audio/wav' })
+        await handleTranscription(audioBlob)
+      }
+
+      mediaRecorder.current.start()
+      setIsRecording(true)
+      addLog('Microphone active...', 'system', 'info')
+    } catch (err) {
+      addLog(`Microphone error: ${err}`, 'system', 'error')
+    }
+  }
+
+  const stopRecording = () => {
+    mediaRecorder.current?.stop()
+    setIsRecording(false)
+  }
+
+  const handleTranscription = async (blob: Blob) => {
+    const formData = new FormData()
+    formData.append('file', blob, 'recording.wav')
+
+    try {
+      addLog('Transcribing...', 'system', 'info')
+      const response = await fetch('http://localhost:8765/voice/transcribe', {
+        method: 'POST',
+        body: formData,
+      })
+      const data = await response.json()
+      if (data.text) {
+        setInput(data.text)
+        addLog(`Voice detected: "${data.text}"`, 'system', 'success')
+      }
+    } catch (err) {
+      addLog(`Transcription failed: ${err}`, 'system', 'error')
+    }
   }
 
   const handleRun = async () => {
@@ -109,7 +163,6 @@ function App() {
             setIsRunning(false); // Pause UI while waiting for human
             break;
           case 'speech':
-             // Just show as info if speech is enabled
              addLog(`Voice: ${data.text}`, 'system', 'info');
              break;
         }
@@ -182,11 +235,11 @@ function App() {
         <button className="nav-item">
           <Icons.Settings /> Settings
         </button>
-        <button className="nav-item primary" onClick={() => {
-          setCurrentView('chat');
-          document.getElementById('task-input')?.focus();
-        }}>
-          <Icons.Mic /> Voice Input
+        <button 
+          className={`nav-item ${isRecording ? 'recording' : 'primary'}`} 
+          onClick={isRecording ? stopRecording : startRecording}
+        >
+          <Icons.Mic /> {isRecording ? 'Stop Recording' : 'Voice Input'}
         </button>
       </aside>
 
@@ -225,7 +278,12 @@ function App() {
 
             <div className="chat-input-container">
               <div className="input-box">
-                <button className="icon-btn" disabled={isRunning} aria-label="Use voice">
+                <button 
+                  className={`icon-btn ${isRecording ? 'active' : ''}`} 
+                  onClick={isRecording ? stopRecording : startRecording}
+                  disabled={isRunning} 
+                  aria-label="Use voice"
+                >
                   <Icons.Mic />
                 </button>
                 <input 
@@ -233,7 +291,7 @@ function App() {
                   type="text" 
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="What would you like me to do for you?"
+                  placeholder={isRecording ? "Listening..." : "What would you like me to do for you?"}
                   disabled={isRunning}
                   onKeyDown={(e) => e.key === 'Enter' && handleRun()}
                   autoFocus
@@ -253,7 +311,6 @@ function App() {
           <div className="library-container">
             <h2>My Workflows</h2>
             <div className="grid">
-              {/* Mock Data for Library */}
               {[
                 { name: "Check Morning Email", desc: "Opens Gmail and summarizes unread messages.", date: "Today" },
                 { name: "Book Flights", desc: "Searches Kayak for weekend flights to NYC.", date: "Yesterday" },

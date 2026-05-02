@@ -52,3 +52,6 @@ release/
 # Misc
 *.pyc
 *.pyo
+bin/
+install_ffmpeg.ps1
+verify_backend.py

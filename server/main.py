@@ -1,9 +1,14 @@
 import os
+import uuid
 import logging
+import asyncio
+from typing import Dict, List
 from pathlib import Path
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from server.agent.graph import app_graph
+from server.agent.bus import manager, emit_event
 from dotenv import load_dotenv
 
 # Configure logging
@@ -14,6 +19,15 @@ load_dotenv(Path(__file__).with_name(".env"))
 load_dotenv()
 
 app = FastAPI(title="AutoOS Gateway API")
+
+# Add CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class TaskRequest(BaseModel):
     task: str
@@ -26,42 +40,52 @@ class TaskResponse(BaseModel):
     classification: str
     result: str
 
-@app.post("/execute", response_model=TaskResponse)
-async def execute_task(request: TaskRequest):
-    """
-    Endpoint to receive user input and route it through the Gateway.
-    """
-    logger.info(f"Received task: {request.task}")
+@app.post("/executions")
+async def create_execution(request: TaskRequest):
+    execution_id = str(uuid.uuid4())
+    # We run the graph in the background after WS connects
+    return {"id": execution_id}
+
+@app.websocket("/ws/execution/{execution_id}")
+async def websocket_endpoint(websocket: WebSocket, execution_id: str):
+    await manager.connect(execution_id, websocket)
+    try:
+        while True:
+            data = await websocket.receive_json()
+            if data.get("type") == "start":
+                task = data.get("task")
+                # We can pull headless/max_steps from initial POST if we had persistence
+                # For now, we'll just run with defaults or the message data
+                await run_agent_task(execution_id, task, data)
+    except WebSocketDisconnect:
+        manager.disconnect(execution_id)
+    except Exception as e:
+        logger.error(f"WS Error: {e}")
+        manager.disconnect(execution_id)
+
+async def run_agent_task(execution_id: str, task: str, params: dict = None):
     try:
         # Initial state
         initial_state = {
-            "task": request.task,
+            "task": task,
             "messages": [],
             "next_action": "",
             "plan": [],
             "result": "",
-            "headless": request.headless,
-            "input_values": request.input_values,
-            "max_steps": request.max_steps,
+            "execution_id": execution_id,
+            "headless": params.get("headless") if params else None,
+            "max_steps": params.get("max_steps") if params else None,
+            "input_values": params.get("input_values") if params else None,
         }
         
         # Run the graph
-        logger.info("Executing LangGraph...")
-        final_state = await app_graph.ainvoke(initial_state)
-        
-        classification = final_state.get("next_action", "unknown")
-        result = final_state.get("result", "No result generated")
-        
-        logger.info(f"Task complete. Classification: {classification}")
-        
-        return TaskResponse(
-            status="success",
-            classification=classification,
-            result=result
+        await app_graph.ainvoke(
+            initial_state, 
+            config={"configurable": {"execution_id": execution_id}}
         )
+        
     except Exception as e:
-        logger.error(f"Error during execution: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        await manager.send_message(execution_id, {"type": "step_error", "error": str(e)})
 
 @app.post("/api/automate/task", response_model=TaskResponse)
 async def automate_browser_task(request: TaskRequest):
@@ -91,5 +115,4 @@ async def automate_browser_task(request: TaskRequest):
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("AUTOFLOW_PORT", 8765))
-    logger.info(f"Starting server on port {port}...")
     uvicorn.run(app, host="0.0.0.0", port=port)

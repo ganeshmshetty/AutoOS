@@ -2,13 +2,14 @@ import os
 from typing import Any
 from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import BaseModel, Field
+from langchain_core.runnables import RunnableConfig
 from server.agent.state import AgentState
 
 class Classification(BaseModel):
     next_action: str = Field(description="The classification of the task: 'browser' or 'os'")
     reasoning: str = Field(description="Brief reasoning for the classification")
 
-def planner(state: AgentState) -> dict[str, Any]:
+def planner(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     """
     Analyzes the task and decides if it's a Browser or OS request.
     """
@@ -24,7 +25,7 @@ def planner(state: AgentState) -> dict[str, Any]:
         api_key = os.getenv("LLM_API_KEYS").split(",")[0]
 
     llm = ChatGoogleGenerativeAI(
-        model=os.getenv("LLM_MODEL", "gemini-1.5-pro"),
+        model=os.getenv("LLM_MODEL", "gemini-3.1-flash-lite"),
         google_api_key=api_key
     )
 
@@ -42,6 +43,16 @@ def planner(state: AgentState) -> dict[str, Any]:
 
     prediction = structured_llm.invoke(prompt)
     
+    # Emit event if we have a config with manager
+    from server.agent.bus import emit_event
+    import asyncio
+    
+    loop = asyncio.get_event_loop()
+    loop.create_task(emit_event(config, {
+        "type": "classification",
+        "category": prediction.next_action
+    }))
+
     return {
         "next_action": prediction.next_action,
         "messages": [{"role": "assistant", "content": f"Classification: {prediction.next_action}. Reasoning: {prediction.reasoning}"}]

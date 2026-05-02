@@ -1,0 +1,14 @@
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+.running {
+  animation: pulse 2s infinite;
+}

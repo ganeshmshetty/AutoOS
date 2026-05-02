@@ -7,6 +7,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from fastapi.staticfiles import StaticFiles
 from server.agent.graph import app_graph
 from server.agent.bus import manager, emit_event
 from dotenv import load_dotenv
@@ -26,6 +27,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Static Files ─────────────────────────────────────────────────────────────
+os.makedirs(os.path.join(os.path.dirname(__file__), "screenshots"), exist_ok=True)
+app.mount("/screenshots", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "screenshots")), name="screenshots")
 
 # ── Running task registry ─────────────────────────────────────────────────────
 # Maps execution_id → asyncio.Task so we can cancel it on demand.

@@ -28,7 +28,7 @@ class TaskPlan(BaseModel):
     sub_category: Literal[
         "web_search", "web_form", "media_playback", "gov_portal",
         "file_ops", "app_launch", "hardware", "settings",
-        "process_mgmt", "security", "diagnostics", "unknown",
+        "process_mgmt", "security", "diagnostics", "vision", "app_control", "unknown",
     ] = Field(description="The specific intent within the chosen category.")
     plain_english_plan: str = Field(
         description=(
@@ -50,14 +50,16 @@ class TaskPlan(BaseModel):
             "  app_launch   → {app_name: str, search_aliases: list[str]}\n"
             "  file_ops     → {keywords: list[str], file_types: list[str], time_hint: str, action: str}\n"
             "  hardware     → {device_type: str}\n"
-            "  settings     → {setting: str, direction: str}\n"
+            "  settings     → {setting: str, direction: str, mode: str}\n"
             "  media_playback → {platform: str, content_type: str, query: str}\n"
             "  web_search   → {query: str}\n"
             "  web_form     → {site: str, action: str}\n"
             "  gov_portal   → {portal: str, action: str}\n"
             "  process_mgmt → {action: str, targets: list[str]}\n"
             "  security     → {action: str}\n"
-            "  diagnostics  → {check_type: str}"
+            "  diagnostics  → {check_type: str}\n"
+            "  vision       → {action: str}\n"
+            "  app_control  → {app_name: str, action: str, input: str}"
         ),
     )
     needs_hitl: bool = Field(
@@ -106,6 +108,9 @@ os — Acts on the local Windows PC without needing the internet:
   process_mgmt    → List, switch to, or forcefully close running programs
   security        → Virus scan, Windows Update, suspicious software, lock screen / PIN
   diagnostics     → Slow PC, crashes, blue screens, Event Log errors, Recycle Bin, disk space
+  vision          → Take a screenshot, capture the screen, or get a summary of computer specs
+  app_control     → Perform an action INSIDE an app (e.g. calculate 5+5, type into notepad, search inside Spotify)
+                    - MUST be used if the user asks to "calculate", "type", "search for <x> in <y>", etc.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 INTELLIGENCE RULES
@@ -206,6 +211,52 @@ WORKED EXAMPLES
   entities=["Downloads", "old files"]
   action_params={"keywords": [], "file_types": [], "time_hint": "old", "action": "delete", "folder": "downloads"}
   plain_english_plan="I will show you old files in your Downloads folder for deletion."
+  
+"take a screenshot"
+  category=os, sub_category=vision, confidence=0.99
+  action_params={"action": "screenshot"}
+  plain_english_plan="I will take a screenshot of your screen."
+
+"turn on airplane mode"
+  category=os, sub_category=settings, confidence=0.98
+  entities=["airplane mode"]
+  action_params={"setting": "airplane_mode", "direction": "on"}
+  plain_english_plan="I will open the settings to turn on Airplane Mode."
+
+"switch to high performance mode"
+  category=os, sub_category=settings, confidence=0.97
+  entities=["performance mode"]
+  action_params={"setting": "power_mode", "mode": "performance"}
+  plain_english_plan="I will switch your computer to High Performance mode."
+
+"what are my computer specs"
+  category=os, sub_category=vision, confidence=0.96
+  action_params={"action": "summary"}
+  plain_english_plan="I will gather a summary of your computer's specifications."
+
+"calculate 52 times 4"
+  category=os, sub_category=app_control, confidence=0.98
+  entities=["Calculator"]
+  action_params={"app_name": "Calculator", "action": "interact", "input": "52*4"}
+  plain_english_plan="I will open the Calculator and perform the calculation 52 * 4."
+
+"open my photos"
+  category=os, sub_category=app_launch, confidence=0.95
+  entities=["Photos"]
+  action_params={"app_name": "Photos", "search_aliases": ["photos", "photo"]}
+  plain_english_plan="I will open your Photos app."
+
+"turn on night light"
+  category=os, sub_category=settings, confidence=0.99
+  entities=["night light"]
+  action_params={"setting": "night_light"}
+  plain_english_plan="I will open the Night Light settings for you."
+
+"Open Calculator and Compute 12 + 324"
+  category=os, sub_category=app_control, confidence=0.99
+  entities=["Calculator"]
+  action_params={"app_name": "Calculator", "action": "interact", "input": "12+324"}
+  plain_english_plan="I will open the Calculator and add 12 and 324."
 """
 
 

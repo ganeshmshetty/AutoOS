@@ -3,7 +3,7 @@ hardware_module.py — Hardware detection and troubleshooting for AutoOS.
 Uses action_params.device_type from the planner for precise dispatch.
 """
 from __future__ import annotations
-
+import os
 import asyncio
 import logging
 import subprocess
@@ -18,12 +18,16 @@ async def run(task: str, entities: list[str], action_params: dict) -> str:
     if device_type in ("usb", "pendrive", "flash_drive", "storage"):
         return await _check_usb()
     if device_type in ("wifi", "wi-fi", "network", "internet"):
+        if "toggle" in task.lower() or "turn" in task.lower() or "switch" in task.lower():
+            return await _open_wifi_settings()
         return await _fix_wifi(task.lower())
     if device_type in ("printer", "print"):
         return await _check_printer()
     if device_type in ("sound", "audio", "speaker", "microphone"):
         return await _run_troubleshooter("audio")
     if device_type in ("bluetooth",):
+        if "toggle" in task.lower() or "turn" in task.lower() or "switch" in task.lower():
+            return await _open_bluetooth_settings()
         return await _check_bluetooth()
 
     # Fallback keyword scan on raw task
@@ -31,12 +35,16 @@ async def run(task: str, entities: list[str], action_params: dict) -> str:
     if any(w in task_lower for w in ("usb", "pendrive", "pen drive", "flash drive")):
         return await _check_usb()
     if any(w in task_lower for w in ("wifi", "wi-fi", "internet", "network")):
+        if any(w in task_lower for w in ("toggle", "turn", "on", "off", "switch")):
+            return await _open_wifi_settings()
         return await _fix_wifi(task_lower)
     if any(w in task_lower for w in ("printer", "print")):
         return await _check_printer()
     if any(w in task_lower for w in ("sound", "audio", "speaker", "mic")):
         return await _run_troubleshooter("audio")
     if "bluetooth" in task_lower:
+        if any(w in task_lower for w in ("toggle", "turn", "on", "off", "switch")):
+            return await _open_bluetooth_settings()
         return await _check_bluetooth()
 
     return await _run_troubleshooter("devices")
@@ -155,6 +163,16 @@ async def _check_bluetooth() -> str:
         return "\n".join(lines)
     except Exception as exc:
         return f"Could not check Bluetooth: {exc}"
+
+
+async def _open_wifi_settings() -> str:
+    os.startfile("ms-settings:network-wifi")
+    return "I opened the Wi-Fi settings for you. You can turn Wi-Fi on or off using the switch there."
+
+
+async def _open_bluetooth_settings() -> str:
+    os.startfile("ms-settings:bluetooth")
+    return "I opened the Bluetooth settings for you. You can turn Bluetooth on or off there."
 
 
 async def _run_troubleshooter(category: str) -> str:

@@ -44,6 +44,12 @@ async def run_os_task(
         case "diagnostics":
             from server.agent.modules import diag_module
             return await diag_module.run(task, entities, action_params)
+        case "vision":
+            from server.agent.modules import visual_module
+            return await visual_module.run(task, entities, action_params)
+        case "app_control":
+            from server.agent.modules import app_module
+            return await app_module.run(task, entities, action_params)
         case _:
             logger.warning("Unknown sub_category '%s', trying app_launch", sub_category)
             from server.agent.modules import app_module

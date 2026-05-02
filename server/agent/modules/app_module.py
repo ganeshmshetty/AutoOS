@@ -7,7 +7,7 @@ Strategy (in priority order):
   1. Windows Registry App Paths
   2. Direct .exe search using search_aliases across common install dirs
   3. Start Menu / Desktop shortcut (.lnk) search
-  4. Shell Execute with the clean app name
+  4. Shell Execute with the clean app name / URI scheme
   5. Clipboard-paste into Start Menu (avoids typewrite char-by-char bug)
 """
 from __future__ import annotations
@@ -49,10 +49,19 @@ async def run(task: str, entities: list[str], action_params: dict) -> str:
         lambda: _try_start_menu_search(app_name),
     ]
 
+    # Special handling for app interaction (e.g. calculation)
+    action: str = action_params.get("action", "").lower()
+    input_text: str = action_params.get("input", "")
+
     for strategy in strategies:
         result = await strategy()
         if result["success"]:
             logger.info("Launch succeeded via %s", result.get("method", "unknown"))
+            
+            if action == "interact" or input_text:
+                await asyncio.sleep(1.5) # Wait for app to focus
+                return await _interact_with_app(result["message"], input_text)
+            
             return result["message"]
 
     return (
@@ -136,13 +145,45 @@ async def _try_shortcut_search(aliases: list[str]) -> dict:
 
 
 async def _try_shell_execute(app_name: str, aliases: list[str]) -> dict:
-    candidates = [app_name] + aliases + [
+    # Modern UWP Apps and URI schemes
+    uri_map = {
+        "calculator": "calc:",
+        "calc": "calc:",
+        "photos": "ms-photos:",
+        "photo": "ms-photos:",
+        "settings": "ms-settings:",
+        "clock": "ms-clock:",
+        "calendar": "outlookcal:",
+        "mail": "outlookmail:",
+        "store": "ms-windows-store:",
+        "weather": "bingweather:",
+    }
+    
+    potential_uris = []
+    # Fuzzy match aliases against uri_map
+    for alias in aliases + [app_name]:
+        a_low = alias.lower().strip()
+        # Direct match
+        if a_low in uri_map:
+            potential_uris.append(uri_map[a_low])
+        # Fuzzy match (e.g. "claculator" -> "calculator")
+        else:
+            for key, uri in uri_map.items():
+                if a_low in key or key in a_low:
+                    potential_uris.append(uri)
+                    break
+
+    candidates = potential_uris + [app_name] + aliases + [
+        "calc.exe", "mspaint.exe", "notepad.exe",
         app_name.lower().replace(" ", "") + ".exe",
         app_name.lower().replace(" ", "-") + ".exe",
     ]
     for candidate in candidates:
         try:
-            subprocess.Popen(candidate, shell=True)
+            if ":" in candidate and any(u in candidate for u in uri_map.values()):
+                os.startfile(candidate)
+            else:
+                subprocess.Popen(candidate, shell=True)
             await asyncio.sleep(1.0)
             return {
                 "success": True, "method": "shell_execute",
@@ -178,3 +219,26 @@ async def _try_start_menu_search(app_name: str) -> dict:
     except Exception as exc:
         logger.warning("Start Menu fallback failed: %s", exc)
         return {"success": False}
+
+
+async def _interact_with_app(launch_msg: str, input_text: str) -> str:
+    """Type text into the active window."""
+    if not input_text:
+        return launch_msg
+
+    try:
+        # Sanitize input for calculator if needed
+        # (e.g. "5 plus 5" -> "5+5=")
+        processed_input = input_text.lower()
+        processed_input = processed_input.replace("plus", "+").replace("minus", "-")
+        processed_input = processed_input.replace("times", "*").replace("multiplied by", "*")
+        processed_input = processed_input.replace("divided by", "/").replace("equals", "=")
+        
+        if "=" not in processed_input and any(op in processed_input for op in "+-*/"):
+            processed_input += "="
+
+        pyautogui.write(processed_input, interval=0.1)
+        return f"{launch_msg} I then typed: '{processed_input}'"
+    except Exception as exc:
+        logger.warning("Interaction failed: %s", exc)
+        return f"{launch_msg} (Interaction failed: {exc})"

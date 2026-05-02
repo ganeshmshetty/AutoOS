@@ -107,6 +107,7 @@ class BrowserAutomationRunner:
         *,
         sensitive_data: dict[str, str] | None = None,
         max_steps: int | None = None,
+        on_step: Any | None = None,
     ) -> BrowserTaskResult:
         if not task.strip():
             return BrowserTaskResult(success=False, task=task, error="No browser task provided")
@@ -137,7 +138,10 @@ class BrowserAutomationRunner:
             )
 
             logger.info("Starting browser task: %s", task[:120])
-            history = await agent.run(max_steps=max_steps or int(os.getenv("BROWSER_MAX_STEPS", "100")))
+            history = await agent.run(
+                max_steps=max_steps or int(os.getenv("BROWSER_MAX_STEPS", "100")),
+                on_step_end=on_step
+            )
             final_result = _extract_final_result(history)
             return BrowserTaskResult(
                 success=True,
@@ -156,9 +160,10 @@ async def run_browser_task(
     headless: bool | None = None,
     input_values: dict[str, str] | None = None,
     max_steps: int | None = None,
+    on_step: Any | None = None,
 ) -> str:
     runner = BrowserAutomationRunner(headless=headless)
-    result = await runner.run_task(task, sensitive_data=input_values, max_steps=max_steps)
+    result = await runner.run_task(task, sensitive_data=input_values, max_steps=max_steps, on_step=on_step)
     return result.as_text()
 
 

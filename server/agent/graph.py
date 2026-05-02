@@ -1,36 +1,48 @@
+"""
+LangGraph Agent Graph — the agentic loop.
+
+Flow:
+  START → gateway_agent → should_continue? → tool_executor → gateway_agent → ... → END
+
+The gateway_agent calls Gemini with tools. If Gemini wants to use a tool,
+the router sends it to tool_executor. After execution, it loops back to
+gateway_agent for the next decision. This continues until the agent is done
+or max iterations are reached.
+"""
+
 from langgraph.graph import StateGraph, END
 from agent.state import AgentState
-from agent.nodes.planner import planner
-from agent.nodes.router import router
-from agent.nodes.executor import browser_executor, os_executor
+from agent.nodes.planner import gateway_agent
+from agent.nodes.executor import tool_executor
+from agent.nodes.router import should_continue
+
 
 def create_graph():
     workflow = StateGraph(AgentState)
 
-    # Add Nodes
-    workflow.add_node("planner", planner)
-    workflow.add_node("browser_executor", browser_executor)
-    workflow.add_node("os_executor", os_executor)
+    # Add nodes
+    workflow.add_node("gateway_agent", gateway_agent)
+    workflow.add_node("tool_executor", tool_executor)
 
-    # Set Entry Point
-    workflow.set_entry_point("planner")
+    # Entry point
+    workflow.set_entry_point("gateway_agent")
 
-    # Add Conditional Edges (The Gateway)
+    # After gateway_agent, decide: call tool, loop back, or end
     workflow.add_conditional_edges(
-        "planner",
-        router,
+        "gateway_agent",
+        should_continue,
         {
-            "browser_executor": "browser_executor",
-            "os_executor": "os_executor",
-            "end": END
+            "tool_executor": "tool_executor",
+            "gateway_agent": "gateway_agent",
+            "end": END,
         }
     )
 
-    # Transitions to END
-    workflow.add_edge("browser_executor", END)
-    workflow.add_edge("os_executor", END)
+    # After tool_executor, always go back to gateway_agent
+    workflow.add_edge("tool_executor", "gateway_agent")
 
     return workflow.compile()
+
 
 # Singleton instance
 app_graph = create_graph()

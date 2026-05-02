@@ -1,18 +1,21 @@
-from typing import Annotated, TypedDict, List
+from typing import Annotated, TypedDict, List, Any
 from langgraph.graph.message import add_messages
 
+
 class AgentState(TypedDict):
-    # The messages in the conversation
-    messages: Annotated[List[dict], add_messages]
-    # The current task description
+    """State for the AutoOS agentic gateway loop."""
+
+    # The messages in the conversation (LangChain message format)
+    messages: Annotated[list, add_messages]
+    # The current task description from the user
     task: str
-    # The classification: "browser" or "os"
-    next_action: str
-    # The plan of steps
-    plan: List[str]
-    # Final result
+    # Execution ID for WebSocket event routing
+    execution_id: str
+    # Tool call history: list of {tool, args, result} dicts
+    tool_history: List[dict]
+    # Current loop iteration (safety counter)
+    iteration: int
+    # Final result text
     result: str
-    # Browser runtime options
-    headless: bool | None
-    input_values: dict[str, str] | None
-    max_steps: int | None
+    # Whether the agent loop is finished
+    done: bool

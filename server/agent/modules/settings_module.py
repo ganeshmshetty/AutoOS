@@ -1,7 +1,6 @@
 import os
 import subprocess
 import logging
-import pyautogui
 import asyncio
 
 logger = logging.getLogger("AutoOS.settings_module")

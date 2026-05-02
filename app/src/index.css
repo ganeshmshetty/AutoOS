@@ -1,43 +1,60 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
 :root {
-  --bg-sidebar: #f8fafc;
+  --bg-sidebar: #f7f8fb;
   --bg-main: #ffffff;
-  --bg-chat-bubble-user: #e2e8f0;
-  --bg-chat-bubble-sys: #ffffff;
-  --border-color: #cbd5e1;
-  --text-main: #0f172a;
-  --text-muted: #64748b;
-  --primary: #0ea5e9;
-  --primary-hover: #0284c7;
-  --focus-ring: #bae6fd;
-  --success: #16a34a;
-  --error: #dc2626;
-  --font-base: 16px;
-  --font-large: 18px;
+  --bg-elevated: #f3f4f8;
+  --bg-user-bubble: #4f46e5;
+  --bg-sys-bubble: #f3f4f8;
+  --border: #e2e4ea;
+  --border-focus: #4f46e5;
+  --text: #1a1c24;
+  --text-sec: #4b5068;
+  --text-muted: #8b8fa4;
+  --primary: #4f46e5;
+  --primary-hover: #4338ca;
+  --primary-light: #eef2ff;
+  --primary-subtle: rgba(79, 70, 229, 0.08);
+  --focus-ring: rgba(79, 70, 229, 0.18);
+  --green: #059669;
+  --green-light: #ecfdf5;
+  --red: #dc2626;
+  --red-light: #fef2f2;
+  --font-base: 14px;
+  --font-sm: 12px;
+  --font-xs: 11px;
+  --radius: 8px;
+  --radius-lg: 12px;
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   font-size: var(--font-base);
-  color: var(--text-main);
-  background-color: var(--bg-main);
+  color: var(--text);
+  background: var(--bg-main);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 
-button {
-  cursor: pointer;
-  font-family: inherit;
-  font-size: var(--font-base);
-}
+button { cursor: pointer; font-family: inherit; font-size: var(--font-base); }
+input, textarea { font-family: inherit; font-size: var(--font-base); color: var(--text); }
 
-input, textarea {
-  font-family: inherit;
-  font-size: var(--font-large);
-  color: var(--text-main);
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }

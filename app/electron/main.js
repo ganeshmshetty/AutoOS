@@ -16,6 +16,24 @@ function createWindow() {
     },
   });
 
+  // Allow window.open to create native popups
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    return {
+      action: 'allow',
+      overrideBrowserWindowOptions: {
+        width: 420,
+        height: 480,
+        autoHideMenuBar: true,
+        alwaysOnTop: true,
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true,
+          preload: path.join(__dirname, 'preload.js'),
+        }
+      }
+    };
+  });
+
   // In development, load from Vite dev server
   if (process.env.NODE_ENV === 'development' || !app.isPackaged) {
     win.loadURL('http://localhost:5173');

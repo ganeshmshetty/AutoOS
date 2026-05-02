@@ -7,19 +7,18 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from server.agent.graph import app_graph
-from server.agent.bus import manager, emit_event
-from server.routers.voice import router as voice_router
 from dotenv import load_dotenv
 
+# Load environment before any other imports that may need env vars
+load_dotenv(Path(__file__).with_name(".env"), override=True)
+
+from agent.graph import app_graph
+from agent.bus import manager, emit_event
 from routers.voice import router as voice_router
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("AutoOS")
-
-load_dotenv(Path(__file__).with_name(".env"), override=True)
-load_dotenv(override=True)
 
 app = FastAPI(title="AutoOS Gateway API")
 
@@ -34,88 +33,105 @@ app.add_middleware(
 
 app.include_router(voice_router)
 
+
 class TaskRequest(BaseModel):
     task: str
-    headless: bool | None = None
-    input_values: dict[str, str] | None = None
-    max_steps: int | None = None
+
 
 class TaskResponse(BaseModel):
     status: str
-    classification: str
     result: str
+
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint."""
+    return {"status": "ok", "service": "AutoOS Gateway"}
+
 
 @app.post("/executions")
 async def create_execution(request: TaskRequest):
+    """Create a new execution session. Returns an ID to connect via WebSocket."""
     execution_id = str(uuid.uuid4())
-    # We run the graph in the background after WS connects
+    logger.info(f"Created execution {execution_id} for task: {request.task[:100]}")
     return {"id": execution_id}
+
+
+# Track running tasks so we can cancel them on disconnect
+active_tasks: Dict[str, asyncio.Task] = {}
 
 @app.websocket("/ws/execution/{execution_id}")
 async def websocket_endpoint(websocket: WebSocket, execution_id: str):
+    """
+    WebSocket endpoint for real-time execution events.
+    
+    Client connects, sends {"type": "start", "task": "..."} to begin.
+    Server streams events: thinking, tool_call, tool_result, step_start, step_done, complete, etc.
+    """
     await manager.connect(execution_id, websocket)
     try:
         while True:
             data = await websocket.receive_json()
             if data.get("type") == "start":
-                task = data.get("task")
-                # We can pull headless/max_steps from initial POST if we had persistence
-                # For now, we'll just run with defaults or the message data
-                await run_agent_task(execution_id, task, data)
+                task = data.get("task", "")
+                logger.info(f"Starting execution {execution_id}: {task[:100]}")
+                # Run the agent in the background so we can keep the WS alive
+                active_tasks[execution_id] = asyncio.create_task(run_agent_task(execution_id, task))
     except WebSocketDisconnect:
+        logger.info(f"WebSocket disconnected: {execution_id}")
         manager.disconnect(execution_id)
+        if execution_id in active_tasks:
+            active_tasks[execution_id].cancel()
+            del active_tasks[execution_id]
     except Exception as e:
-        logger.error(f"WS Error: {e}")
+        logger.error(f"WS Error: {e}", exc_info=True)
         manager.disconnect(execution_id)
+        if execution_id in active_tasks:
+            active_tasks[execution_id].cancel()
+            del active_tasks[execution_id]
 
-async def run_agent_task(execution_id: str, task: str, params: dict = None):
+
+async def run_agent_task(execution_id: str, task: str):
+    """Run the LangGraph agent loop for a task."""
     try:
-        # Initial state
         initial_state = {
             "task": task,
             "messages": [],
-            "next_action": "",
-            "plan": [],
+            "tool_history": [],
             "result": "",
             "execution_id": execution_id,
-            "headless": params.get("headless") if params else None,
-            "max_steps": params.get("max_steps") if params else None,
-            "input_values": params.get("input_values") if params else None,
+            "iteration": 0,
+            "done": False,
         }
-        
+
         # Run the graph
-        await app_graph.ainvoke(
-            initial_state, 
+        result = await app_graph.ainvoke(
+            initial_state,
             config={"configurable": {"execution_id": execution_id}}
         )
-        
+
+        logger.info(f"Execution {execution_id} completed")
+
+        # If the graph ended without sending a "complete" event (e.g., max iterations),
+        # send one now
+        final_result = result.get("result", "Task completed.")
+        if not result.get("done"):
+            await manager.send_message(execution_id, {
+                "type": "complete",
+                "summary": final_result or "Task completed (max iterations reached).",
+            })
+
     except Exception as e:
-        await manager.send_message(execution_id, {"type": "step_error", "error": str(e)})
+        logger.error(f"Agent task error: {e}", exc_info=True)
+        await manager.send_message(execution_id, {
+            "type": "step_error",
+            "error": str(e),
+        })
+        await manager.send_message(execution_id, {
+            "type": "complete",
+            "summary": f"Task failed: {str(e)}",
+        })
 
-@app.post("/api/automate/task", response_model=TaskResponse)
-async def automate_browser_task(request: TaskRequest):
-    """
-    Extension-friendly direct browser automation endpoint.
-
-    This bypasses classification and executes the supplied task with browser-use.
-    """
-    from server.agent.tools.browser_tool import BrowserAutomationRunner
-
-    try:
-        logger.info(f"Received browser automation task: {request.task}")
-        result = await BrowserAutomationRunner(headless=request.headless).run_task(
-            request.task,
-            sensitive_data=request.input_values,
-            max_steps=request.max_steps,
-        )
-        return TaskResponse(
-            status="success" if result.success else "failed",
-            classification="browser",
-            result=result.as_text(),
-        )
-    except Exception as e:
-        logger.error(f"Error during browser automation: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn

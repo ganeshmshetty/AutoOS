@@ -172,6 +172,23 @@ async def automate_browser_task(request: TaskRequest):
         logger.error("Error during browser automation: %s", str(e), exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/system/health")
+async def get_system_health():
+    import psutil
+    cpu = psutil.cpu_percent(interval=None)
+    ram = psutil.virtual_memory().percent
+    battery = psutil.sensors_battery()
+    
+    return {
+        "cpu": cpu,
+        "ram": ram,
+        "battery": {
+            "percent": battery.percent if battery else 100,
+            "power_plugged": battery.power_plugged if battery else True
+        } if battery else None,
+        "disk": psutil.disk_usage('/').percent
+    }
+
 
 if __name__ == "__main__":
     import uvicorn

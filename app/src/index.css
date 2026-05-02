@@ -888,3 +888,376 @@ input {
 .skill-toggle:hover {
   opacity: 0.8;
 }
+
+/* Workflows View */
+.workflows-container {
+  padding: 2.5rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.workflows-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 2rem;
+  margin-top: 2.5rem;
+}
+
+.workflow-card {
+  background: #0f172a;
+  border-radius: 16px;
+  border: 1px solid #1e293b;
+  overflow: hidden;
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.workflow-card:hover {
+  transform: translateY(-8px);
+  border-color: #38bdf8;
+  box-shadow: 0 20px 40px -20px rgba(56, 189, 248, 0.3);
+}
+
+.card-gradient {
+  height: 120px;
+  width: 100%;
+}
+
+.card-content {
+  padding: 1.5rem;
+}
+
+.card-main h3 {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #f8fafc;
+  margin-bottom: 0.5rem;
+}
+
+.card-main p {
+  font-size: 0.875rem;
+  color: #94a3b8;
+  margin-bottom: 1.5rem;
+  line-height: 1.6;
+}
+
+.steps-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 2rem;
+}
+
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.75rem;
+  color: #64748b;
+  padding: 0.5rem 0.75rem;
+  background: rgba(255,255,255,0.02);
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.step-item.active {
+  background: rgba(56, 189, 248, 0.1);
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+.step-item.done {
+  color: #10b981;
+}
+
+.run-btn {
+  width: 100%;
+  padding: 0.875rem;
+  background: #38bdf8;
+  color: #020617;
+  border: none;
+  border-radius: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.run-btn:hover:not(:disabled) {
+  background: #7dd3fc;
+  transform: scale(1.02);
+}
+
+.run-btn:disabled {
+  background: #1e293b;
+  color: #475569;
+  cursor: not-allowed;
+}
+
+.workflow-card.running {
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.05);
+}
+
+.create-wf-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid #1e293b;
+  color: #f8fafc;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.create-wf-btn:hover {
+  background: rgba(255,255,255,0.1);
+  border-color: #38bdf8;
+}
+
+/* Workflow Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(2, 6, 23, 0.85);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.workflow-modal {
+  background: #0f172a;
+  width: 580px;
+  border-radius: 20px;
+  border: 1px solid #1e293b;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  padding: 1.5rem 2rem;
+  border-bottom: 1px solid #1e293b;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.icon-box {
+  background: rgba(56, 189, 248, 0.1);
+  padding: 0.75rem;
+  border-radius: 12px;
+}
+
+.header-title h2 {
+  font-size: 1.25rem;
+  color: #f8fafc;
+}
+
+.header-title p {
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.modal-body {
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.input-group label {
+  display: block;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+  margin-bottom: 0.5rem;
+  font-weight: 700;
+}
+
+.input-group input {
+  width: 100%;
+  background: #020617;
+  border: 1px solid #1e293b;
+  color: #f8fafc;
+  padding: 0.875rem 1rem;
+  border-radius: 10px;
+  transition: border-color 0.2s;
+}
+
+.input-group input:focus {
+  border-color: #38bdf8;
+  outline: none;
+}
+
+.builder-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.add-step-btn {
+  background: transparent;
+  border: 1px dashed #334155;
+  color: #38bdf8;
+  font-size: 0.75rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s;
+}
+
+.add-step-btn:hover {
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.05);
+}
+
+.steps-list-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.step-input-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.step-num {
+  width: 24px;
+  height: 24px;
+  background: #1e293b;
+  color: #94a3b8;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.step-input-row input {
+  flex: 1;
+  background: #1e293b;
+  border: 1px solid transparent;
+  color: #f8fafc;
+  padding: 0.6rem 0.875rem;
+  border-radius: 8px;
+}
+
+.remove-step-btn {
+  background: transparent;
+  border: none;
+  color: #475569;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.remove-step-btn:hover {
+  color: #ef4444;
+}
+
+.modal-footer {
+  padding: 1.5rem 2rem;
+  border-top: 1px solid #1e293b;
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+
+.save-wf-btn {
+  background: #38bdf8;
+  color: #020617;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.cancel-btn {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Workflow Actions */
+.header-actions {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.import-wf-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  background: rgba(14, 165, 233, 0.1);
+  border: 1px solid rgba(14, 165, 233, 0.2);
+  color: #38bdf8;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.import-wf-btn:hover {
+  background: rgba(14, 165, 233, 0.2);
+  border-color: #38bdf8;
+}
+
+.card-top-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.5rem;
+}
+
+.export-mini-btn {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid #1e293b;
+  color: #64748b;
+  padding: 0.4rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.export-mini-btn:hover {
+  color: #38bdf8;
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.05);
+}

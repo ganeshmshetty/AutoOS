@@ -10,11 +10,13 @@ import {
   ShieldAlert, 
   Puzzle, 
   Maximize2, 
-  Send 
+  Send,
+  Zap
 } from 'lucide-react';
 import ChatView from './ChatView';
 import DashboardView from './DashboardView';
 import SkillsView from './SkillsView';
+import WorkflowsView from './WorkflowsView';
 import { Message } from './types';
 import './index.css';
 
@@ -39,6 +41,9 @@ function SidebarDock() {
         </Link>
         <Link to="/dashboard" className={`dock-item ${location.pathname === '/dashboard' ? 'active' : ''}`} title="System Dashboard">
           <LayoutDashboard size={24} />
+        </Link>
+        <Link to="/workflows" className={`dock-item ${location.pathname === '/workflows' ? 'active' : ''}`} title="Automated Workflows">
+          <Zap size={24} />
         </Link>
         <Link to="/skills" className={`dock-item ${location.pathname === '/skills' ? 'active' : ''}`} title="Skills Marketplace">
           <Puzzle size={24} />
@@ -155,46 +160,51 @@ function App() {
     addMessage('user', taskStr);
     updateCompact(compactState.isCompact || false, 'ANALYZING', 'Thinking...');
 
-    try {
-      const response = await fetch('http://localhost:8765/executions', {
+    return new Promise<void>((resolve, reject) => {
+      fetch('http://localhost:8765/executions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ task: taskStr })
+      })
+      .then(res => res.json())
+      .then(data => {
+        executionIdRef.current = data.id;
+        ws.current = new WebSocket(`ws://localhost:8765/ws/execution/${data.id}`);
+        ws.current.onopen = () => ws.current?.send(JSON.stringify({ type: 'start', task: taskStr }));
+        ws.current.onmessage = (event) => {
+          const msg = JSON.parse(event.data);
+          switch (msg.type) {
+            case 'classification':
+              setStatus('executing');
+              if (msg.plain_english_plan) {
+                updateCompact(true, 'EXECUTING', msg.plain_english_plan);
+                addMessage('agent', msg.plain_english_plan, { type: 'info' });
+              }
+              break;
+            case 'complete':
+              addMessage('agent', msg.summary);
+              setIsRunning(false);
+              setStatus('idle');
+              updateCompact(compactState.isCompact, '', msg.summary);
+              resolve();
+              break;
+            case 'step_error':
+              addMessage('system', `Error: ${msg.error}`);
+              setIsRunning(false);
+              setStatus('idle');
+              updateCompact(compactState.isCompact, 'ERROR', msg.error);
+              reject(msg.error);
+              break;
+          }
+        };
+      })
+      .catch(e => {
+        setIsRunning(false);
+        setStatus('idle');
+        addMessage('system', 'Failed to connect to backend.');
+        reject(e);
       });
-      const data = await response.json();
-      executionIdRef.current = data.id;
-
-      ws.current = new WebSocket(`ws://localhost:8765/ws/execution/${data.id}`);
-      ws.current.onopen = () => ws.current?.send(JSON.stringify({ type: 'start', task: taskStr }));
-      ws.current.onmessage = (event) => {
-        const msg = JSON.parse(event.data);
-        switch (msg.type) {
-          case 'classification':
-            setStatus('executing');
-            if (msg.plain_english_plan) {
-              updateCompact(true, 'EXECUTING', msg.plain_english_plan);
-              addMessage('agent', msg.plain_english_plan, { type: 'info' });
-            }
-            break;
-          case 'complete':
-            addMessage('agent', msg.summary);
-            setIsRunning(false);
-            setStatus('idle');
-            updateCompact(compactState.isCompact, '', msg.summary);
-            break;
-          case 'step_error':
-            addMessage('system', `Error: ${msg.error}`);
-            setIsRunning(false);
-            setStatus('idle');
-            updateCompact(compactState.isCompact, 'ERROR', msg.error);
-            break;
-        }
-      };
-    } catch (e) {
-      setIsRunning(false);
-      setStatus('idle');
-      addMessage('system', 'Failed to connect to backend.');
-    }
+    });
   };
 
   // --- UI Handlers ---
@@ -252,6 +262,7 @@ function App() {
                   />
                 } />
                 <Route path="/dashboard" element={<DashboardView />} />
+                <Route path="/workflows" element={<WorkflowsView handleRun={handleRun} isRunning={isRunning} />} />
                 <Route path="/skills" element={<SkillsView />} />
               </Routes>
             </div>

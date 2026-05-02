@@ -1,0 +1,12 @@
+{
+  "id": "dev_mode",
+  "name": "Dev Mode",
+  "description": "Initialize a clean development environment.",
+  "color": "linear-gradient(135deg, #10b981 0%, #3b82f6 100%)",
+  "steps": [
+    "Open VS Code",
+    "Open Terminal",
+    "Open GitHub on Brave",
+    "Check my disk space to ensure enough room for builds"
+  ]
+}

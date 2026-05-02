@@ -1,0 +1,11 @@
+{
+  "id": "morning_startup",
+  "name": "Morning Startup",
+  "description": "Get ready for the day with your favorite tools.",
+  "color": "linear-gradient(135deg, #38bdf8 0%, #818cf8 100%)",
+  "steps": [
+    "Open Brave and check the weather in Bangalore",
+    "Open Spotify on Brave and play my Liked Songs",
+    "Open WhatsApp and check for new messages"
+  ]
+}

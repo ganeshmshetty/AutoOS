@@ -286,6 +286,27 @@ async def list_threads():
             })
     return sorted(threads, key=lambda x: x["last_updated"], reverse=True)
 
+@app.get("/system/workflows")
+async def list_workflows():
+    wf_path = Path("server/knowledge/workflows")
+    if not wf_path.exists(): return []
+    
+    workflows = []
+    for f in wf_path.glob("*.json"):
+        with open(f, "r") as wf:
+            workflows.append(json.load(wf))
+    return workflows
+
+@app.post("/system/workflows/save")
+async def save_workflow(data: dict):
+    wf_path = Path("server/knowledge/workflows")
+    wf_path.mkdir(parents=True, exist_ok=True)
+    
+    wf_id = data.get("id", "wf_" + datetime.now().strftime("%H%M%S"))
+    with open(wf_path / f"{wf_id}.json", "w") as f:
+        json.dump(data, f, indent=2)
+    return {"status": "saved"}
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("AUTOFLOW_PORT", 8765))

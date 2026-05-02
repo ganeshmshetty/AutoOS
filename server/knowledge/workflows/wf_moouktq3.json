@@ -1,0 +1,11 @@
+{
+  "id": "wf_moouktq3",
+  "name": "MY Needle",
+  "description": "",
+  "steps": [
+    "Play bollywood best songs on yt",
+    "Open VS Code",
+    "Open Spotify on brave"
+  ],
+  "color": "linear-gradient(135deg, #10b981 0%, #3b82f6 100%)"
+}

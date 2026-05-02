@@ -69,7 +69,14 @@ async def stop_execution(execution_id: str):
         task.cancel()
         logger.info("Cancelled execution %s via REST", execution_id)
         return {"status": "stopped"}
-    return {"status": "not_found"}        while True:
+    return {"status": "not_found"}
+
+
+@app.websocket("/ws/execution/{execution_id}")
+async def websocket_endpoint(websocket: WebSocket, execution_id: str):
+    await manager.connect(execution_id, websocket)
+    try:
+        while True:
             data = await websocket.receive_json()
 
             if data.get("type") == "start":
@@ -99,11 +106,14 @@ async def stop_execution(execution_id: str):
         if task and not task.done():
             task.cancel()
         manager.disconnect(execution_id)
-            elif data.get("type") == "stop":
-                task = _running_tasks.pop(execution_id, None)
-                if task and not task.done():
-                    task.cancel()
-                    logger.info("Cancelled execution %s via WebSocket stop message", execution_id)            "messages": [],
+
+
+async def _run_agent_task(execution_id: str, task_text: str, params: dict | None = None):
+    """Run the LangGraph agent as a cancellable asyncio task."""
+    try:
+        initial_state = {
+            "task": task_text,
+            "messages": [],
             "next_action": "",
             "sub_category": "",
             "entities": [],
@@ -113,6 +123,7 @@ async def stop_execution(execution_id: str):
             "needs_hitl": False,
             "plan": [],
             "result": "",
+            "context": {},
             "headless": params.get("headless") if params else None,
             "max_steps": params.get("max_steps") if params else None,
             "input_values": params.get("input_values") if params else None,
@@ -133,7 +144,8 @@ async def stop_execution(execution_id: str):
             })
         except Exception:
             # WebSocket may already be closed
-            pass    except Exception as e:
+            pass
+    except Exception as e:
         logger.error("Agent task error: %s", e, exc_info=True)
         await manager.send_message(execution_id, {"type": "step_error", "error": str(e)})
 

@@ -1,24 +1,39 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
+from pydantic import BaseModel
+from voice.transcribe import transcribe_audio
 import logging
-from server.voice.transcribe import transcribe_audio
 
+logger = logging.getLogger("AutoOS.api.voice")
 router = APIRouter(prefix="/voice", tags=["voice"])
-logger = logging.getLogger("AutoOS.voice_router")
 
-@router.post("/transcribe")
-async def transcribe(file: UploadFile = File(...)):
+class TranscriptionResponse(BaseModel):
+    text: str
+
+@router.post("/transcribe", response_model=TranscriptionResponse)
+async def transcribe_endpoint(audio: UploadFile = File(...)):
     """
-    Endpoint to receive an audio file and return transcribed text.
+    Receives an audio file (e.g., .wav from the frontend),
+    processes it through the local faster-whisper model,
+    and returns the transcribed text.
     """
+    if not audio:
+        raise HTTPException(status_code=400, detail="No audio file provided.")
+    
     try:
-        content = await file.read()
-        if not content:
-            raise HTTPException(status_code=400, detail="Empty audio file")
-            
-        text = await transcribe_audio(content)
-        logger.info(f"Transcribed text: {text}")
+        # Read the file bytes
+        audio_bytes = await audio.read()
+        logger.info(f"Received audio file for transcription: {audio.filename} ({len(audio_bytes)} bytes)")
         
-        return {"text": text}
+        # Pass to faster-whisper
+        text = transcribe_audio(audio_bytes)
+        
+        if not text:
+            logger.warning("Transcription resulted in empty text.")
+            return TranscriptionResponse(text="")
+            
+        logger.info(f"Successfully transcribed text: {text}")
+        return TranscriptionResponse(text=text)
+
     except Exception as e:
-        logger.error(f"Transcription error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Transcription failed")
+        logger.error(f"Error in transcription endpoint: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to process audio.")

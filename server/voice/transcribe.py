@@ -1,60 +1,54 @@
-import whisper
 import os
 import tempfile
 import logging
-import asyncio
-from static_ffmpeg import add_paths
+from faster_whisper import WhisperModel
 
 logger = logging.getLogger("AutoOS.voice")
 
-# Global variables
-_model = None
-_ffmpeg_ready = False
+# Initialize the model at module level so it loads only once at startup
+# We use the 'base' model by default. It's fast and accurate enough for short commands.
+MODEL_SIZE = os.getenv("WHISPER_MODEL", "base")
 
-def ensure_ffmpeg():
-    """
-    Ensures FFmpeg is available. This can be blocking on the first run.
-    """
-    global _ffmpeg_ready
-    if not _ffmpeg_ready:
-        try:
-            logger.info("Initializing static-ffmpeg...")
-            add_paths()
-            _ffmpeg_ready = True
-            logger.info("static-ffmpeg is ready.")
-        except Exception as e:
-            logger.error(f"Failed to add static-ffmpeg: {e}")
+logger.info(f"Loading faster-whisper model: {MODEL_SIZE}...")
+# Use INT8 for CPU inference to save memory and speed up
+try:
+    model = WhisperModel(MODEL_SIZE, device="cpu", compute_type="int8")
+    logger.info("faster-whisper model loaded successfully.")
+except Exception as e:
+    logger.error(f"Error loading faster-whisper model: {e}")
+    model = None
 
-def get_model():
-    global _model
-    if _model is None:
-        logger.info("Loading Whisper 'base' model...")
-        _model = whisper.load_model("base")
-    return _model
 
-async def transcribe_audio(audio_bytes: bytes) -> str:
+def transcribe_audio(audio_bytes: bytes) -> str:
     """
-    Transcribes raw audio bytes using the local Whisper model.
+    Transcribes audio bytes to text using faster-whisper.
+    Saves bytes to a temp file, transcribes, and cleans up.
     """
-    # Ensure dependencies are ready
-    await asyncio.to_thread(ensure_ffmpeg)
-    model = await asyncio.to_thread(get_model)
-    
-    # Save bytes to a temporary file
+    if not model:
+        raise RuntimeError("Whisper model is not loaded.")
+
+    # Create a temporary file to store the audio bytes
+    # faster-whisper expects a file path
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
         temp_audio.write(audio_bytes)
-        temp_path = temp_audio.name
-        
+        temp_audio_path = temp_audio.name
+
     try:
-        logger.info(f"Transcribing audio from {temp_path}...")
-        # Use asyncio.to_thread to run the CPU-intensive transcription without blocking
-        # Explicitly set fp16=False for CPU compatibility
-        result = await asyncio.to_thread(model.transcribe, temp_path, fp16=False)
-        text = result.get("text", "").strip()
-        return text
+        # Generate transcription
+        # Using beam_size=1 (greedy search) for speed, since these are short commands
+        segments, info = model.transcribe(temp_audio_path, beam_size=1)
+        
+        # Combine segments
+        transcribed_text = " ".join([segment.text for segment in segments]).strip()
+        
+        logger.info(f"Transcription complete (Language: {info.language}, Probability: {info.language_probability:.2f})")
+        return transcribed_text
+
     except Exception as e:
-        logger.error(f"Whisper transcription failed: {e}")
-        return f"Error: {str(e)}"
+        logger.error(f"Transcription failed: {str(e)}")
+        raise e
+    
     finally:
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
+        # Clean up temp file
+        if os.path.exists(temp_audio_path):
+            os.remove(temp_audio_path)

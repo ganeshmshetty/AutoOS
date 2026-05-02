@@ -9,7 +9,6 @@ dependencies = [
     "langgraph>=0.2.0",
     "langchain-google-genai>=2.0.0",
     "fastapi>=0.136.1",
-    "openai-whisper>=20250625",
     "pydantic==2.12.5",
     "python-dotenv==1.2.1",
     "sqlmodel>=0.0.38",
@@ -19,4 +18,6 @@ dependencies = [
     "pyautogui>=0.9.54",
     "pywinauto>=0.6.8; sys_platform == 'win32'",
     "pywin32>=306; sys_platform == 'win32'",
+    "faster-whisper>=1.2.1",
+    "python-multipart>=0.0.27",
 ]

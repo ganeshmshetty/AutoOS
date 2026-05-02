@@ -12,6 +12,8 @@ from server.agent.bus import manager, emit_event
 from server.routers.voice import router as voice_router
 from dotenv import load_dotenv
 
+from routers.voice import router as voice_router
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("AutoOS")

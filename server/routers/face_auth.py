@@ -1,6 +1,7 @@
 import os
 import base64
 import logging
+import uuid
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from deepface import DeepFace
@@ -13,7 +14,14 @@ router = APIRouter(prefix="/api/face-auth", tags=["Face Auth"])
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
 os.makedirs(DATA_DIR, exist_ok=True)
 MASTER_FACE_PATH = os.path.join(DATA_DIR, "master_face.jpg")
-TEMP_VERIFY_PATH = os.path.join(DATA_DIR, "temp_verify.jpg")
+
+# ── Model config ──────────────────────────────────────────────────────────────
+# Facenet512 is more accurate than VGG-Face (default).
+# Its cosine threshold is 0.30 which means stricter matching.
+# We tighten it further to 0.25 — only a very close match passes.
+FACE_MODEL    = "Facenet512"
+FACE_METRIC   = "cosine"
+FACE_THRESHOLD = 0.25   # tighter than Facenet512's default of 0.30
 
 
 class FaceImage(BaseModel):
@@ -26,9 +34,16 @@ def _decode_base64_image(image_base64: str) -> bytes:
         _, encoded = image_base64.split(",", 1)
     else:
         encoded = image_base64
-    # Fix padding if missing
-    encoded += "=" * (-len(encoded) % 4)
+    encoded += "=" * (-len(encoded) % 4)  # fix missing padding
     return base64.b64decode(encoded)
+
+
+def _write_temp_image(image_data: bytes) -> str:
+    """Write bytes to a unique temp file and return its path."""
+    path = os.path.join(DATA_DIR, f"_tmp_{uuid.uuid4().hex}.jpg")
+    with open(path, "wb") as f:
+        f.write(image_data)
+    return path
 
 
 @router.get("/status")
@@ -39,45 +54,74 @@ def get_status():
 
 @router.post("/register")
 def register_face(data: FaceImage):
-    """Save the provided face image as the master face for this device."""
-    # Decode image
+    """
+    Save the provided face image as the master face for this device.
+
+    Steps:
+      1. Decode base64 → JPEG bytes
+      2. Detect face with strict enforcement (must contain a real face)
+      3. Save as master_face.jpg
+    """
     try:
         image_data = _decode_base64_image(data.image_base64)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid image data: {e}")
 
-    if len(image_data) < 100:
-        raise HTTPException(status_code=400, detail="Image data is too small. Please try again.")
+    if len(image_data) < 1000:
+        raise HTTPException(status_code=400, detail="Image is too small. Please try again.")
 
-    # Write to disk
-    with open(MASTER_FACE_PATH, "wb") as f:
-        f.write(image_data)
+    tmp_path = _write_temp_image(image_data)
 
-    # Validate that a face is actually detectable.
-    # enforce_detection=False so we get a graceful result instead of an exception
-    # when the face is at an angle or in poor lighting.
     try:
+        # Enforce that a real face is present — reject images with no detectable face
         faces = DeepFace.extract_faces(
-            MASTER_FACE_PATH,
-            enforce_detection=False,  # returns empty list instead of raising
+            tmp_path,
+            enforce_detection=True,   # STRICT: raises FaceNotDetected if no face
+            detector_backend="opencv",
         )
-        # If the confidence of the best detection is very low, treat as no face
-        if not faces or (faces[0].get("confidence", 1.0) < 0.5 and len(faces) == 1):
-            logger.warning("Low confidence face detection during registration: %s", faces)
-    except Exception as e:
-        # If extract_faces itself crashes (corrupt file, etc.) clean up and fail
-        if os.path.exists(MASTER_FACE_PATH):
-            os.remove(MASTER_FACE_PATH)
-        logger.error("Face extraction error during register: %s", e)
-        raise HTTPException(status_code=400, detail=f"Could not process image: {e}")
+        if not faces:
+            raise ValueError("No face detected")
 
-    logger.info("Master face registered at %s", MASTER_FACE_PATH)
-    return {"success": True, "message": "Face registered successfully"}
+        best_confidence = max(f.get("confidence", 0) for f in faces)
+        logger.info("Registration face confidence: %.3f (faces found: %d)", best_confidence, len(faces))
+
+        if best_confidence < 0.80:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Face not clearly visible (confidence {best_confidence:.0%}). "
+                       "Please improve lighting and look directly at the camera."
+            )
+
+        # Promote temp file to master
+        os.replace(tmp_path, MASTER_FACE_PATH)
+        logger.info("Master face registered at %s", MASTER_FACE_PATH)
+        return {"success": True, "message": "Face registered successfully"}
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        # FaceNotDetected is a ValueError subclass
+        _cleanup(tmp_path)
+        raise HTTPException(
+            status_code=400,
+            detail="No face detected in the photo. Please look directly at the camera in good lighting."
+        )
+    except Exception as e:
+        _cleanup(tmp_path)
+        logger.error("Registration error: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail=f"Could not process image: {e}")
 
 
 @router.post("/verify")
 def verify_face(data: FaceImage):
-    """Verify a captured face against the registered master face."""
+    """
+    Verify a captured face against the registered master face.
+
+    Steps:
+      1. Decode base64 → JPEG bytes
+      2. STRICT face detection on the incoming image (must have a real face)
+      3. Compare against master using Facenet512 with a tight threshold (0.25)
+    """
     if not os.path.exists(MASTER_FACE_PATH):
         raise HTTPException(status_code=400, detail="No face registered yet. Please register first.")
 
@@ -86,29 +130,62 @@ def verify_face(data: FaceImage):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid image data: {e}")
 
-    # Write temp file for comparison
-    with open(TEMP_VERIFY_PATH, "wb") as f:
-        f.write(image_data)
+    tmp_path = _write_temp_image(image_data)
 
     try:
+        # ── Step 1: Confirm a real face is present in the verification image ──
+        try:
+            faces = DeepFace.extract_faces(
+                tmp_path,
+                enforce_detection=True,   # STRICT
+                detector_backend="opencv",
+            )
+            if not faces:
+                raise ValueError("No face detected")
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="No face detected in the photo. Please look directly at the camera."
+            )
+
+        # ── Step 2: Compare against the registered master face ─────────────────
         result = DeepFace.verify(
-            img1_path=TEMP_VERIFY_PATH,
+            img1_path=tmp_path,
             img2_path=MASTER_FACE_PATH,
-            enforce_detection=False,  # Don't crash if face is slightly off-frame
+            model_name=FACE_MODEL,
+            distance_metric=FACE_METRIC,
+            enforce_detection=True,    # STRICT: both images must have a detectable face
+            threshold=FACE_THRESHOLD,  # custom tighter threshold
         )
 
-        is_match = result.get("verified", False)
-        logger.info("Face verify result: verified=%s distance=%.3f", is_match, result.get("distance", 0))
+        distance  = result.get("distance", 1.0)
+        verified  = result.get("verified", False)
+        threshold = result.get("threshold", FACE_THRESHOLD)
+
+        logger.info(
+            "Face verify | model=%s | distance=%.4f | threshold=%.4f | verified=%s",
+            FACE_MODEL, distance, threshold, verified,
+        )
 
         return {
             "success": True,
-            "verified": bool(is_match),
-            "distance": result.get("distance"),
-            "threshold": result.get("threshold"),
+            "verified": bool(verified),
+            "distance": round(distance, 4),
+            "threshold": round(threshold, 4),
         }
+
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error("Face verification error: %s", e)
+        logger.error("Verification error: %s", e, exc_info=True)
         raise HTTPException(status_code=400, detail=f"Verification failed: {e}")
     finally:
-        if os.path.exists(TEMP_VERIFY_PATH):
-            os.remove(TEMP_VERIFY_PATH)
+        _cleanup(tmp_path)
+
+
+def _cleanup(path: str):
+    try:
+        if path and os.path.exists(path):
+            os.remove(path)
+    except OSError:
+        pass

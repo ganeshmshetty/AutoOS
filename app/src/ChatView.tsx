@@ -97,16 +97,24 @@ function ChatView({
             </div>
           )}
 
-          {messages.map((m: Message) => (
-            <div key={m.id} className={`message message-${m.role}`}>
-              {m.subCategory && (
-                <div className={`badge badge-${m.type}`}>
-                  {CATEGORY_LABELS[m.subCategory] || m.subCategory}
-                </div>
-              )}
-              {m.content}
-            </div>
-          ))}
+          {messages.map((m: Message) => {
+            // Guard: content must always be a string — LangChain objects can slip through
+            const safeContent = typeof m.content === 'string'
+              ? m.content
+              : typeof (m.content as any)?.text === 'string'
+              ? (m.content as any).text
+              : JSON.stringify(m.content);
+            return (
+              <div key={m.id} className={`message message-${m.role}`}>
+                {m.subCategory && (
+                  <div className={`badge badge-${m.type}`}>
+                    {CATEGORY_LABELS[m.subCategory] || m.subCategory}
+                  </div>
+                )}
+                {safeContent}
+              </div>
+            );
+          })}
 
           {status !== 'idle' && (
             <div className="message message-agent">

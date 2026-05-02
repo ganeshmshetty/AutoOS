@@ -257,6 +257,18 @@ WORKED EXAMPLES
   entities=["Calculator"]
   action_params={"app_name": "Calculator", "action": "interact", "input": "12+324"}
   plain_english_plan="I will open the Calculator and add 12 and 324."
+
+"show me available wifi networks"
+  category=os, sub_category=hardware, confidence=0.98
+  entities=["wifi"]
+  action_params={"device_type": "wifi"}
+  plain_english_plan="I will scan for nearby Wi-Fi networks and open your network settings."
+
+"turn on night light"
+  category=os, sub_category=settings, confidence=0.99
+  entities=["night light"]
+  action_params={"setting": "night_light"}
+  plain_english_plan="I will open the Night Light settings for you."
 """
 
 

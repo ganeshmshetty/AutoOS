@@ -18,7 +18,9 @@ async def run(task: str, entities: list[str], action_params: dict) -> str:
     if device_type in ("usb", "pendrive", "flash_drive", "storage"):
         return await _check_usb()
     if device_type in ("wifi", "wi-fi", "network", "internet"):
-        if "toggle" in task.lower() or "turn" in task.lower() or "switch" in task.lower():
+        if any(w in task.lower() for w in ("available", "nearby", "list", "scan", "show")):
+            return await _get_available_wifi_networks()
+        if any(w in task.lower() for w in ("toggle", "turn", "on", "off", "switch", "open", "settings")):
             return await _open_wifi_settings()
         return await _fix_wifi(task.lower())
     if device_type in ("printer", "print"):
@@ -35,7 +37,9 @@ async def run(task: str, entities: list[str], action_params: dict) -> str:
     if any(w in task_lower for w in ("usb", "pendrive", "pen drive", "flash drive")):
         return await _check_usb()
     if any(w in task_lower for w in ("wifi", "wi-fi", "internet", "network")):
-        if any(w in task_lower for w in ("toggle", "turn", "on", "off", "switch")):
+        if any(w in task_lower for w in ("available", "nearby", "list", "scan", "show")):
+            return await _get_available_wifi_networks()
+        if any(w in task_lower for w in ("toggle", "turn", "on", "off", "switch", "open", "settings")):
             return await _open_wifi_settings()
         return await _fix_wifi(task_lower)
     if any(w in task_lower for w in ("printer", "print")):
@@ -58,6 +62,10 @@ async def _check_usb() -> str:
             p for p in partitions
             if "removable" in p.opts.lower() or p.fstype.lower() in ("fat32", "exfat", "fat")
         ]
+        
+        # Open storage settings for the user
+        os.startfile("ms-settings:storagesense")
+
         if not usb_drives:
             return (
                 "No USB drives are connected right now.\n"
@@ -74,6 +82,8 @@ async def _check_usb() -> str:
                 )
             except Exception:
                 lines.append(f"  Drive {p.mountpoint} ({p.fstype})")
+        
+        lines.append("\nI have also opened your Storage settings for you.")
         return "\n".join(lines)
     except Exception as exc:
         return f"Could not check USB drives: {exc}"
@@ -151,6 +161,10 @@ async def _check_bluetooth() -> str:
             ],
             capture_output=True, text=True, timeout=15
         )
+        
+        # Open Bluetooth settings for the user
+        os.startfile("ms-settings:bluetooth")
+
         if result.returncode != 0 or not result.stdout.strip():
             return "No Bluetooth devices found. Make sure Bluetooth is turned on."
         import json
@@ -160,9 +174,45 @@ async def _check_bluetooth() -> str:
         lines = [f"Found {len(devices)} Bluetooth device(s):\n"]
         for d in devices:
             lines.append(f"  {d.get('FriendlyName', 'Unknown')} — {d.get('Status', 'Unknown')}")
+        
+        lines.append("\nI have also opened your Bluetooth settings for you.")
         return "\n".join(lines)
     except Exception as exc:
         return f"Could not check Bluetooth: {exc}"
+
+
+async def _get_available_wifi_networks() -> str:
+    try:
+        # Open settings first for the user
+        os.startfile("ms-settings:network-wifi")
+        
+        # Scan for networks
+        result = subprocess.run(
+            ["netsh", "wlan", "show", "networks"],
+            capture_output=True, text=True, timeout=10
+        )
+        output = result.stdout
+        
+        networks = []
+        for line in output.splitlines():
+            if "SSID" in line and ":" in line:
+                ssid = line.split(":", 1)[1].strip()
+                if ssid:
+                    networks.append(ssid)
+        
+        if not networks:
+            return (
+                "I couldn't find any available Wi-Fi networks in range.\n"
+                "I have opened your Wi-Fi settings so you can check if your Wi-Fi adapter is turned on."
+            )
+        
+        msg = "I found the following Wi-Fi networks nearby:\n\n"
+        msg += "\n".join([f"• {n}" for n in networks])
+        msg += "\n\nI have also opened your Wi-Fi settings for you to connect."
+        return msg
+    except Exception as exc:
+        os.startfile("ms-settings:network-wifi")
+        return f"I opened your Wi-Fi settings, but I had trouble listing the networks via text: {exc}"
 
 
 async def _open_wifi_settings() -> str:

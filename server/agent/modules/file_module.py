@@ -49,9 +49,32 @@ async def run(task: str, entities: list[str], action_params: dict) -> str:
     action: str = action_params.get("action", "search")
     folder: str | None = action_params.get("folder")
 
-    task_lower = task.lower()
-
-    # Infer intent from task if action_params is sparse
+    # Determine the requested action (default is search)
+    action: str = action_params.get("action", "search")
+    if action == "open":
+        # Resolve file name from entities or keywords
+        target_name = (entities or keywords)[0] if (entities or keywords) else None
+        if not target_name:
+            return "Please specify a file name to open."
+        # Search in Downloads folder first
+        downloads = Path.home() / "Downloads"
+        candidate = downloads / target_name
+        if candidate.exists():
+            try:
+                os.startfile(str(candidate))
+                return f"Opened {target_name} from Downloads."
+            except Exception as e:
+                return f"Failed to open {target_name}: {e}"
+        # Fallback: search across user roots
+        for root in _USER_ROOTS:
+            try:
+                for f in root.rglob(target_name):
+                    os.startfile(str(f))
+                    return f"Opened {target_name} from {root}."
+            except Exception:
+                continue
+        return f"Could not find {target_name} to open."
+    # Existing logic for other actions follows
     if not keywords and not file_types:
         if any(w in task_lower for w in ("recent", "last", "working on", "yesterday")):
             return await _recent_files(entities, file_types)

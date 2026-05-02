@@ -1,6 +1,4 @@
-def main():
-    print("Hello from server!")
+# Person 2: FastAPI app config, startup events
+from fastapi import FastAPI
 
-
-if __name__ == "__main__":
-    main()
+app = FastAPI()

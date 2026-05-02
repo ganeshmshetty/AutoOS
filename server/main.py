@@ -15,6 +15,7 @@ load_dotenv(Path(__file__).with_name(".env"), override=True)
 from agent.graph import app_graph
 from agent.bus import manager, emit_event
 from routers.voice import router as voice_router
+from routers.face_auth import router as face_auth_router
 from db import init_db, get_session
 from models.workflow import Workflow
 from fastapi import Depends, HTTPException
@@ -44,6 +45,7 @@ app.add_middleware(
 )
 
 app.include_router(voice_router)
+app.include_router(face_auth_router)
 
 # --- Workflow Endpoints ---
 

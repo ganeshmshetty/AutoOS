@@ -206,6 +206,8 @@ const PopupApp = () => {
   )
 }
 
+import { FaceAuthModal } from './FaceAuthModal'
+
 /* ── App ────────────────────────────────────────────────────────────────── */
 
 type View = 'chat' | 'library' | 'settings'
@@ -241,6 +243,18 @@ function App({ sharedWorkflowId, sharedData, sharedBlobId }: { sharedWorkflowId?
   const [model, setModel]        = useState(localStorage.getItem('autoos_model') ?? 'gemini-2.0-flash')
   const [voiceOut, setVoiceOut]   = useState(localStorage.getItem('autoos_voice_out') !== 'false')
   const [headless, setHeadless]   = useState(localStorage.getItem('autoos_headless') === 'true')
+
+  // Face Auth state
+  const [faceRegistered, setFaceRegistered] = useState(false)
+  const [faceAuthAction, setFaceAuthAction] = useState<{ mode: 'register' } | { mode: 'verify', task: string } | null>(null)
+
+  useEffect(() => {
+    // Check face auth status
+    fetch('http://localhost:8765/api/face-auth/status')
+      .then(res => res.json())
+      .then(data => setFaceRegistered(data.registered))
+      .catch(console.error)
+  }, [])
 
   const wsRef    = useRef<WebSocket | null>(null)
   const endRef   = useRef<HTMLDivElement>(null)
@@ -725,8 +739,13 @@ function App({ sharedWorkflowId, sharedData, sharedBlobId }: { sharedWorkflowId?
                         } else if (wf.steps && wf.steps.length > 0) {
                           cmd += `\n\nContext from previous successful run:\n` + JSON.stringify(wf.steps);
                         }
-                        setView('chat'); 
-                        run(cmd); 
+                        
+                        if (faceRegistered) {
+                          setFaceAuthAction({ mode: 'verify', task: cmd });
+                        } else {
+                          setView('chat'); 
+                          run(cmd); 
+                        }
                       }}>
                         <I.Play /> Run
                       </button>
@@ -820,6 +839,20 @@ function App({ sharedWorkflowId, sharedData, sharedBlobId }: { sharedWorkflowId?
             </div>
 
             <div className="settings-group">
+              <div className="settings-group-title">Security</div>
+
+              <div className="setting-row">
+                <div className="setting-info">
+                  <div className="label">Face Verification</div>
+                  <div className="desc">Require face scan to run saved workflows</div>
+                </div>
+                <button className="primary-btn" style={{ padding: '6px 12px' }} onClick={() => setFaceAuthAction({ mode: 'register' })}>
+                  {faceRegistered ? 'Re-register Face' : 'Register Face'}
+                </button>
+              </div>
+            </div>
+
+            <div className="settings-group">
               <div className="settings-group-title">Browser Automation</div>
 
               <div className="setting-row">
@@ -879,14 +912,39 @@ function App({ sharedWorkflowId, sharedData, sharedBlobId }: { sharedWorkflowId?
                   cmd += `\n\nContext from previous successful run:\n` + JSON.stringify(sharedWorkflow.steps);
                 }
                 setSharedWorkflow(null);
-                setView('chat');
-                run(cmd);
+                
+                if (faceRegistered) {
+                  setFaceAuthAction({ mode: 'verify', task: cmd });
+                } else {
+                  setView('chat');
+                  run(cmd);
+                }
               }}>
                 Run Workflow
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Face Auth Modal ─────────────────────────────────────────────── */}
+      {faceAuthAction && (
+        <FaceAuthModal 
+          mode={faceAuthAction.mode}
+          onCancel={() => setFaceAuthAction(null)}
+          onSuccess={() => {
+            if (faceAuthAction.mode === 'register') {
+              setFaceRegistered(true);
+              setFaceAuthAction(null);
+              alert('Master face registered successfully!');
+            } else if (faceAuthAction.mode === 'verify') {
+              const task = faceAuthAction.task;
+              setFaceAuthAction(null);
+              setView('chat');
+              run(task);
+            }
+          }}
+        />
       )}
 
     </div>

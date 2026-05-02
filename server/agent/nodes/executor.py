@@ -1,10 +1,10 @@
 from typing import Any
 import asyncio
 from langchain_core.runnables import RunnableConfig
-from server.agent.state import AgentState
-from server.agent.tools.browser_tool import run_browser_task
-from server.agent.tools.desktop_tool import run_os_task
-from server.agent.bus import emit_event
+from agent.state import AgentState
+from agent.tools.browser_tool import run_browser_task
+from agent.tools.desktop_tool import run_os_task
+from agent.bus import emit_event
 
 async def browser_executor(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     """

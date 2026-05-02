@@ -1,4 +1,4 @@
-from server.agent.state import AgentState
+from agent.state import AgentState
 
 def router(state: AgentState) -> str:
     """

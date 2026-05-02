@@ -7,8 +7,8 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from server.agent.graph import app_graph
-from server.agent.bus import manager, emit_event
+from agent.graph import app_graph
+from agent.bus import manager, emit_event
 from dotenv import load_dotenv
 
 # Configure logging
@@ -94,7 +94,7 @@ async def automate_browser_task(request: TaskRequest):
 
     This bypasses classification and executes the supplied task with browser-use.
     """
-    from server.agent.tools.browser_tool import BrowserAutomationRunner
+    from agent.tools.browser_tool import BrowserAutomationRunner
 
     try:
         logger.info(f"Received browser automation task: {request.task}")

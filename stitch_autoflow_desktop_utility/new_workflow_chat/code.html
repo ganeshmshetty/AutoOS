@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>AutoFlow - New Workflow</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                            "primary": "#0058bc",
+                            "surface-tint": "#005bc1",
+                            "tertiary": "#9e3d00",
+                            "on-secondary-fixed": "#0c006a",
+                            "on-surface": "#1c1b1b",
+                            "outline-variant": "#c1c6d7",
+                            "error-container": "#ffdad6",
+                            "surface-bright": "#fcf9f8",
+                            "on-secondary-fixed-variant": "#3631b4",
+                            "inverse-primary": "#adc6ff",
+                            "surface-container-highest": "#e5e2e1",
+                            "tertiary-fixed": "#ffdbcc",
+                            "tertiary-fixed-dim": "#ffb595",
+                            "primary-fixed": "#d8e2ff",
+                            "on-error": "#ffffff",
+                            "inverse-surface": "#313030",
+                            "on-surface-variant": "#414755",
+                            "on-tertiary-fixed-variant": "#7c2e00",
+                            "on-tertiary-fixed": "#351000",
+                            "on-primary-container": "#fefcff",
+                            "on-secondary-container": "#fffbff",
+                            "secondary": "#4c4aca",
+                            "surface-container-high": "#eae7e7",
+                            "secondary-container": "#6664e4",
+                            "error": "#ba1a1a",
+                            "on-primary-fixed": "#001a41",
+                            "inverse-on-surface": "#f3f0ef",
+                            "on-tertiary": "#ffffff",
+                            "primary-fixed-dim": "#adc6ff",
+                            "secondary-fixed": "#e2dfff",
+                            "background": "#fcf9f8",
+                            "secondary-fixed-dim": "#c2c1ff",
+                            "outline": "#717786",
+                            "surface-dim": "#dcd9d9",
+                            "surface-container-lowest": "#ffffff",
+                            "on-primary": "#ffffff",
+                            "on-error-container": "#93000a",
+                            "surface-container-low": "#f6f3f2",
+                            "on-primary-fixed-variant": "#004493",
+                            "primary-container": "#0070eb",
+                            "surface-variant": "#e5e2e1",
+                            "on-secondary": "#ffffff",
+                            "surface-container": "#f0eded",
+                            "surface": "#fcf9f8",
+                            "tertiary-container": "#c64f00",
+                            "on-background": "#1c1b1b",
+                            "on-tertiary-container": "#fffbff"
+                    },
+                    "borderRadius": {
+                            "DEFAULT": "0.125rem",
+                            "lg": "0.25rem",
+                            "xl": "0.5rem",
+                            "full": "0.75rem"
+                    },
+                    "spacing": {
+                            "xl": "32px",
+                            "unit": "4px",
+                            "md": "16px",
+                            "lg": "24px",
+                            "sidebar_width": "260px",
+                            "gutter": "20px",
+                            "sm": "8px",
+                            "xs": "4px"
+                    },
+                    "fontFamily": {
+                            "display": [
+                                    "Public Sans"
+                            ],
+                            "label-bold": [
+                                    "Public Sans"
+                            ],
+                            "body-large": [
+                                    "Public Sans"
+                            ],
+                            "body-main": [
+                                    "Public Sans"
+                            ],
+                            "input-text": [
+                                    "Public Sans"
+                            ],
+                            "header-section": [
+                                    "Public Sans"
+                            ],
+                            "caption": [
+                                    "Public Sans"
+                            ]
+                    },
+                    "fontSize": {
+                            "display": [
+                                    "24px",
+                                    {
+                                            "lineHeight": "32px",
+                                            "letterSpacing": "-0.02em",
+                                            "fontWeight": "600"
+                                    }
+                            ],
+                            "label-bold": [
+                                    "14px",
+                                    {
+                                            "lineHeight": "20px",
+                                            "fontWeight": "600"
+                                    }
+                            ],
+                            "body-large": [
+                                    "18px",
+                                    {
+                                            "lineHeight": "28px",
+                                            "fontWeight": "400"
+                                    }
+                            ],
+                            "body-main": [
+                                    "16px",
+                                    {
+                                            "lineHeight": "24px",
+                                            "fontWeight": "400"
+                                    }
+                            ],
+                            "input-text": [
+                                    "18px",
+                                    {
+                                            "lineHeight": "24px",
+                                            "fontWeight": "400"
+                                    }
+                            ],
+                            "header-section": [
+                                    "20px",
+                                    {
+                                            "lineHeight": "28px",
+                                            "fontWeight": "600"
+                                    }
+                            ],
+                            "caption": [
+                                    "14px",
+                                    {
+                                            "lineHeight": "20px",
+                                            "fontWeight": "400"
+                                    }
+                            ]
+                    }
+            },
+                },
+        }
+    </script>
+</head>
+<body class="bg-background text-on-background font-body-main antialiased h-screen flex overflow-hidden">
+<!-- SideNavBar -->
+<nav class="fixed left-0 top-0 bottom-0 flex flex-col w-[260px] z-40 bg-[#f1f5f9] dark:bg-slate-950 text-[#007AFF] dark:text-blue-400 font-['Public_Sans'] text-sm antialiased w-[260px] h-screen border-r border-[#e2e8f0] dark:border-slate-800 shadow-none">
+<div class="p-6">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-on-primary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">robot_2</span>
+</div>
+<div>
+<h1 class="text-xl font-black tracking-tight text-slate-900 dark:text-white">AutoFlow</h1>
+<p class="text-xs text-slate-500">v1.0.4</p>
+</div>
+</div>
+</div>
+<div class="px-4 mb-6">
+<button class="w-full flex items-center justify-center gap-2 bg-primary text-on-primary h-[44px] rounded-DEFAULT font-label-bold hover:bg-surface-tint transition-colors">
+<span class="material-symbols-outlined">add</span>
+                New Workflow
+            </button>
+</div>
+<div class="flex-1 overflow-y-auto py-2 flex flex-col gap-1">
+<a class="flex items-center gap-3 bg-slate-200 dark:bg-slate-800 text-[#007AFF] dark:text-blue-300 font-bold rounded-md px-4 py-3 mx-2 active:scale-[0.98] transition-transform" href="#">
+<span class="material-symbols-outlined">account_tree</span>
+                My Workflows
+            </a>
+<a class="flex items-center gap-3 text-slate-600 dark:text-slate-400 font-medium px-4 py-3 mx-2 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors duration-150 active:scale-[0.98] transition-transform" href="#">
+<span class="material-symbols-outlined">settings</span>
+                Settings
+            </a>
+</div>
+<div class="p-4 border-t border-[#e2e8f0] dark:border-slate-800">
+<button class="flex items-center gap-3 w-full text-slate-600 dark:text-slate-400 font-medium px-4 py-3 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors duration-150 rounded-md">
+<span class="material-symbols-outlined">mic</span>
+                Voice Command
+            </button>
+</div>
+</nav>
+<!-- Main Content Area -->
+<div class="flex-1 flex flex-col ml-[260px] h-full bg-background relative">
+<!-- TopAppBar -->
+<header class="flex items-center justify-between px-6 sticky top-0 z-30 bg-white dark:bg-slate-900 text-[#007AFF] dark:text-blue-400 font-['Public_Sans'] text-base h-16 w-full border-b border-[#e2e8f0] dark:border-slate-800 shadow-sm dark:shadow-none">
+<div class="text-lg font-bold text-slate-900 dark:text-white hidden">AutoFlow</div>
+<div class="flex items-center bg-surface-container-low rounded-lg px-3 py-2 w-96 border border-outline-variant focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-all">
+<span class="material-symbols-outlined text-outline mr-2">search</span>
+<input class="bg-transparent border-none outline-none text-body-main text-on-surface w-full placeholder-on-surface-variant p-0 focus:ring-0" placeholder="Search..." type="text"/>
+</div>
+<div class="flex items-center gap-2">
+<button class="text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 p-2 rounded-full active:opacity-70 transition-opacity">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 p-2 rounded-full active:opacity-70 transition-opacity">
+<span class="material-symbols-outlined">help_outline</span>
+</button>
+<button class="text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 p-2 rounded-full active:opacity-70 transition-opacity">
+<span class="material-symbols-outlined">account_circle</span>
+</button>
+</div>
+</header>
+<!-- Chat Canvas -->
+<main class="flex-1 overflow-y-auto p-lg flex flex-col gap-lg pb-32">
+<!-- Welcome State / Empty State Context -->
+<div class="text-center py-xl mt-xl">
+<div class="w-16 h-16 bg-surface-container-high rounded-full flex items-center justify-center mx-auto mb-4 text-primary">
+<span class="material-symbols-outlined text-[32px]">auto_awesome</span>
+</div>
+<h2 class="font-display text-display text-on-surface mb-2">New Automation</h2>
+<p class="font-body-large text-body-large text-on-surface-variant max-w-lg mx-auto">Describe the task you want to automate, or use voice command to get started.</p>
+</div>
+<!-- Conversation History -->
+<div class="flex flex-col gap-md max-w-4xl mx-auto w-full mt-lg">
+<!-- User Message -->
+<div class="flex justify-end">
+<div class="bg-surface-container-high text-on-surface px-6 py-4 rounded-2xl rounded-tr-sm max-w-[80%] font-body-large text-body-large shadow-sm">
+                        Go to the Acme Corp portal, download the weekly sales report CSV, and email it to the marketing team.
+                    </div>
+</div>
+<!-- System Progress / Logs -->
+<div class="flex justify-start w-full">
+<div class="flex gap-4 max-w-[80%]">
+<div class="w-8 h-8 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center shrink-0 mt-1">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">robot_2</span>
+</div>
+<div class="flex flex-col gap-3 w-full">
+<div class="flex items-center gap-3 text-on-surface-variant font-body-main text-body-main">
+<span class="material-symbols-outlined text-outline">language</span>
+<span>Opening browser to Acme Corp portal...</span>
+<span class="material-symbols-outlined text-green-600 ml-auto">check_circle</span>
+</div>
+<div class="flex items-center gap-3 text-on-surface-variant font-body-main text-body-main">
+<span class="material-symbols-outlined text-outline">login</span>
+<span>Authenticating credentials...</span>
+<span class="material-symbols-outlined text-green-600 ml-auto">check_circle</span>
+</div>
+<div class="flex items-center gap-3 text-on-surface font-label-bold text-label-bold bg-surface-container px-4 py-3 rounded-lg border border-outline-variant">
+<span class="material-symbols-outlined text-primary animate-pulse">download</span>
+<span>Locating and downloading weekly sales report...</span>
+</div>
+<!-- Contextual Action Card -->
+<div class="bg-surface border border-outline-variant rounded-xl p-4 shadow-sm mt-2">
+<div class="flex items-start justify-between">
+<div class="flex gap-3">
+<div class="w-10 h-10 bg-secondary-container text-on-secondary-container rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined">drafts</span>
+</div>
+<div>
+<h4 class="font-label-bold text-label-bold text-on-surface">Drafting Email</h4>
+<p class="font-caption text-caption text-on-surface-variant mt-1">To: marketing-team@acme.com</p>
+</div>
+</div>
+<span class="bg-tertiary-container text-on-tertiary-container px-2 py-1 rounded text-xs font-label-bold">In Progress</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Input Area (Fixed Bottom) -->
+<div class="absolute bottom-0 left-0 right-0 p-lg bg-gradient-to-t from-background via-background to-transparent pt-12">
+<div class="max-w-4xl mx-auto relative flex items-end gap-4 bg-surface shadow-[0_4px_24px_rgba(0,0,0,0.08)] rounded-2xl p-2 border border-outline-variant focus-within:border-primary focus-within:ring-2 focus-within:ring-primary-fixed transition-all">
+<textarea class="w-full bg-transparent border-none outline-none resize-none font-input-text text-input-text text-on-surface placeholder-on-surface-variant min-h-[60px] py-4 px-4 focus:ring-0" placeholder="What would you like me to do for you?" rows="1"></textarea>
+<div class="flex items-center gap-2 pb-2 pr-2 shrink-0">
+<button class="w-12 h-12 flex items-center justify-center rounded-xl bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest transition-colors">
+<span class="material-symbols-outlined text-[24px]">attach_file</span>
+</button>
+<button class="w-12 h-12 flex items-center justify-center rounded-xl bg-primary text-on-primary shadow-sm hover:bg-surface-tint active:scale-[0.98] transition-all">
+<span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 1;">mic</span>
+</button>
+<button class="w-12 h-12 flex items-center justify-center rounded-xl bg-secondary text-on-secondary shadow-sm hover:bg-secondary-container active:scale-[0.98] transition-all hidden">
+<span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 1;">send</span>
+</button>
+</div>
+</div>
+<div class="text-center mt-3">
+<p class="font-caption text-caption text-on-surface-variant">AutoFlow can execute actions on your local machine. Press Enter to send or shift+Enter for a new line.</p>
+</div>
+</div>
+</div>
+</body></html>

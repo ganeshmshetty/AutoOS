@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Settings - AutoFlow</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary": "#0058bc",
+                        "surface-tint": "#005bc1",
+                        "tertiary": "#9e3d00",
+                        "on-secondary-fixed": "#0c006a",
+                        "on-surface": "#1c1b1b",
+                        "outline-variant": "#c1c6d7",
+                        "error-container": "#ffdad6",
+                        "surface-bright": "#fcf9f8",
+                        "on-secondary-fixed-variant": "#3631b4",
+                        "inverse-primary": "#adc6ff",
+                        "surface-container-highest": "#e5e2e1",
+                        "tertiary-fixed": "#ffdbcc",
+                        "tertiary-fixed-dim": "#ffb595",
+                        "primary-fixed": "#d8e2ff",
+                        "on-error": "#ffffff",
+                        "inverse-surface": "#313030",
+                        "on-surface-variant": "#414755",
+                        "on-tertiary-fixed-variant": "#7c2e00",
+                        "on-tertiary-fixed": "#351000",
+                        "on-primary-container": "#fefcff",
+                        "on-secondary-container": "#fffbff",
+                        "secondary": "#4c4aca",
+                        "surface-container-high": "#eae7e7",
+                        "secondary-container": "#6664e4",
+                        "error": "#ba1a1a",
+                        "on-primary-fixed": "#001a41",
+                        "inverse-on-surface": "#f3f0ef",
+                        "on-tertiary": "#ffffff",
+                        "primary-fixed-dim": "#adc6ff",
+                        "secondary-fixed": "#e2dfff",
+                        "background": "#fcf9f8",
+                        "secondary-fixed-dim": "#c2c1ff",
+                        "outline": "#717786",
+                        "surface-dim": "#dcd9d9",
+                        "surface-container-lowest": "#ffffff",
+                        "on-primary": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "surface-container-low": "#f6f3f2",
+                        "on-primary-fixed-variant": "#004493",
+                        "primary-container": "#0070eb",
+                        "surface-variant": "#e5e2e1",
+                        "on-secondary": "#ffffff",
+                        "surface-container": "#f0eded",
+                        "surface": "#fcf9f8",
+                        "tertiary-container": "#c64f00",
+                        "on-background": "#1c1b1b",
+                        "on-tertiary-container": "#fffbff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "xl": "32px",
+                        "unit": "4px",
+                        "md": "16px",
+                        "lg": "24px",
+                        "sidebar_width": "260px",
+                        "gutter": "20px",
+                        "sm": "8px",
+                        "xs": "4px"
+                    },
+                    "fontFamily": {
+                        "display": ["Public Sans"],
+                        "label-bold": ["Public Sans"],
+                        "body-large": ["Public Sans"],
+                        "body-main": ["Public Sans"],
+                        "input-text": ["Public Sans"],
+                        "header-section": ["Public Sans"],
+                        "caption": ["Public Sans"]
+                    },
+                    "fontSize": {
+                        "display": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+                        "label-bold": ["14px", { "lineHeight": "20px", "fontWeight": "600" }],
+                        "body-large": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "body-main": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "input-text": ["18px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "header-section": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "caption": ["14px", { "lineHeight": "20px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface min-h-screen flex font-body-main antialiased selection:bg-primary-fixed selection:text-on-primary-fixed">
+<!-- SideNavBar -->
+<nav aria-label="Sidebar" class="fixed left-0 top-0 bottom-0 flex flex-col w-[260px] z-40 bg-[#f1f5f9] dark:bg-slate-950 border-r border-[#e2e8f0] dark:border-slate-800 shadow-none font-['Public_Sans'] text-sm antialiased">
+<!-- Header -->
+<div class="flex items-center px-6 py-lg mb-sm">
+<div class="w-8 h-8 rounded bg-primary-fixed flex items-center justify-center mr-3 text-on-primary-fixed font-bold shadow-sm">
+                A
+            </div>
+<div class="flex flex-col">
+<span class="text-xl font-black tracking-tight text-slate-900 dark:text-white">AutoFlow</span>
+<span class="text-xs text-slate-500 font-medium">v1.0.4</span>
+</div>
+</div>
+<!-- CTA -->
+<div class="px-4 mb-md">
+<button class="w-full bg-[#007AFF] text-white hover:bg-blue-600 active:scale-[0.98] transition-all duration-150 py-3 rounded-md font-semibold flex items-center justify-center gap-2 shadow-sm">
+<span class="material-symbols-outlined text-[20px]">add</span>
+                New Workflow
+            </button>
+</div>
+<!-- Navigation Links -->
+<div class="flex-1 overflow-y-auto py-2 flex flex-col gap-1">
+<a class="text-slate-600 dark:text-slate-400 font-medium px-4 py-3 mx-2 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors duration-150 active:scale-[0.98] flex items-center gap-3 rounded-md" href="#">
+<span class="material-symbols-outlined text-[22px]">account_tree</span>
+                My Workflows
+            </a>
+<a class="bg-slate-200 dark:bg-slate-800 text-[#007AFF] dark:text-blue-300 font-bold rounded-md px-4 py-3 mx-2 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors duration-150 active:scale-[0.98] flex items-center gap-3" href="#">
+<span class="material-symbols-outlined text-[22px]" style="font-variation-settings: 'FILL' 1;">settings</span>
+                Settings
+            </a>
+</div>
+<!-- Footer Tab -->
+<div class="p-4 border-t border-[#e2e8f0] dark:border-slate-800 mt-auto">
+<a class="text-slate-600 dark:text-slate-400 font-medium px-4 py-3 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors duration-150 active:scale-[0.98] flex items-center gap-3 rounded-md w-full" href="#">
+<span class="material-symbols-outlined text-[22px]">mic</span>
+                Voice Command
+            </a>
+</div>
+</nav>
+<!-- Main Content Wrapper -->
+<div class="ml-[260px] flex-1 flex flex-col min-h-screen">
+<!-- TopAppBar -->
+<header class="flex items-center justify-between px-6 sticky top-0 z-30 h-16 w-full border-b border-[#e2e8f0] dark:border-slate-800 shadow-sm dark:shadow-none bg-white dark:bg-slate-900 font-['Public_Sans'] text-base">
+<!-- Search -->
+<div class="flex-1 max-w-md">
+<div class="relative flex items-center w-full h-10 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 px-3 border border-transparent focus-within:border-[#007AFF] focus-within:bg-white transition-colors">
+<span class="material-symbols-outlined mr-2 text-[20px]">search</span>
+<input class="bg-transparent border-none outline-none w-full text-sm font-medium text-slate-900 placeholder-slate-500 p-0 focus:ring-0" placeholder="Search settings..." type="text"/>
+</div>
+</div>
+<!-- Trailing Actions -->
+<div class="flex items-center gap-2 text-[#007AFF] dark:text-blue-400">
+<button class="hover:bg-slate-50 dark:hover:bg-slate-800 p-2 rounded-full active:opacity-70 transition-opacity flex items-center justify-center w-10 h-10">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="hover:bg-slate-50 dark:hover:bg-slate-800 p-2 rounded-full active:opacity-70 transition-opacity flex items-center justify-center w-10 h-10">
+<span class="material-symbols-outlined">help_outline</span>
+</button>
+<button class="hover:bg-slate-50 dark:hover:bg-slate-800 p-2 rounded-full active:opacity-70 transition-opacity flex items-center justify-center w-10 h-10">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">account_circle</span>
+</button>
+</div>
+</header>
+<!-- Settings Canvas -->
+<main class="flex-1 p-xl overflow-y-auto">
+<div class="max-w-[1000px] mx-auto w-full flex flex-col gap-xl">
+<!-- Page Header -->
+<div>
+<h1 class="font-display text-display text-on-surface">Configuration &amp; Preferences</h1>
+<p class="font-body-main text-body-main text-on-surface-variant mt-xs">Manage your global automation rules, hardware interfaces, and accessibility features.</p>
+</div>
+<!-- Bento Grid Layout for Settings -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-lg">
+<!-- Card: Voice Sensitivity -->
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant p-lg flex flex-col justify-between shadow-[0_2px_4px_rgba(0,0,0,0.02)] h-full">
+<div>
+<div class="flex items-center gap-sm mb-md">
+<div class="w-10 h-10 rounded bg-primary-fixed flex items-center justify-center text-on-primary-fixed">
+<span class="material-symbols-outlined">graphic_eq</span>
+</div>
+<h2 class="font-header-section text-header-section text-on-surface">Voice Sensitivity</h2>
+</div>
+<p class="font-body-main text-body-main text-on-surface-variant mb-xl">Adjust how strictly the engine interprets spoken commands against background noise. Higher sensitivity may trigger false positives.</p>
+</div>
+<div class="flex flex-col gap-md">
+<div class="flex items-center justify-between font-label-bold text-label-bold text-on-surface">
+<span>Forgiving</span>
+<span>Strict</span>
+</div>
+<!-- Custom Range Slider Representation -->
+<div class="relative w-full h-2 bg-surface-variant rounded-full flex items-center">
+<div class="absolute left-0 h-full bg-primary rounded-full w-[65%]"></div>
+<div class="absolute left-[65%] w-6 h-6 bg-surface-container-lowest border-2 border-primary rounded-full shadow-sm -ml-3 cursor-pointer hover:scale-110 transition-transform"></div>
+</div>
+<div class="text-right font-caption text-caption text-outline mt-xs">Currently set to 65%</div>
+</div>
+</div>
+<!-- Card: Default Browser -->
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant p-lg flex flex-col justify-between shadow-[0_2px_4px_rgba(0,0,0,0.02)] h-full">
+<div>
+<div class="flex items-center gap-sm mb-md">
+<div class="w-10 h-10 rounded bg-secondary-fixed flex items-center justify-center text-on-secondary-fixed">
+<span class="material-symbols-outlined">public</span>
+</div>
+<h2 class="font-header-section text-header-section text-on-surface">Default Browser</h2>
+</div>
+<p class="font-body-main text-body-main text-on-surface-variant mb-xl">Select the target application for all web-based automation tasks. This application must be installed locally.</p>
+</div>
+<div class="flex flex-col gap-sm">
+<label class="font-label-bold text-label-bold text-on-surface">Select Application</label>
+<div class="relative">
+<select class="appearance-none w-full h-[48px] px-md bg-surface-container-low border border-outline-variant rounded-lg font-input-text text-input-text text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer">
+<option class="font-input-text" value="system">System Default (Edge)</option>
+<option class="font-input-text" selected="" value="chrome">Google Chrome</option>
+<option class="font-input-text" value="firefox">Mozilla Firefox</option>
+<option class="font-input-text" value="brave">Brave Browser</option>
+</select>
+<span class="material-symbols-outlined absolute right-md top-1/2 -translate-y-1/2 text-outline pointer-events-none">expand_more</span>
+</div>
+</div>
+</div>
+<!-- Card: Accessibility Mode -->
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant p-lg flex flex-col shadow-[0_2px_4px_rgba(0,0,0,0.02)] h-full lg:col-span-2">
+<div class="flex items-start justify-between">
+<div class="flex gap-md max-w-2xl">
+<div class="w-10 h-10 rounded bg-tertiary-fixed flex items-center justify-center text-on-tertiary-fixed shrink-0 mt-1">
+<span class="material-symbols-outlined">accessibility_new</span>
+</div>
+<div class="flex flex-col">
+<h2 class="font-header-section text-header-section text-on-surface mb-xs">Accessibility Mode</h2>
+<p class="font-body-large text-body-large text-on-surface-variant">Enables high-contrast UI elements, increases target sizes for touch input, and forces text-to-speech output for all workflow completion notifications.</p>
+</div>
+</div>
+<!-- Toggle Switch -->
+<button aria-checked="true" class="relative inline-flex h-8 w-14 shrink-0 cursor-pointer items-center justify-center rounded-full focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background" role="switch" type="button">
+<span class="sr-only">Use setting</span>
+<span aria-hidden="true" class="pointer-events-none absolute mx-auto h-6 w-12 rounded-full bg-primary transition-colors duration-200 ease-in-out"></span>
+<span aria-hidden="true" class="pointer-events-none absolute left-0 inline-block h-5 w-5 translate-x-7 transform rounded-full border border-transparent bg-white shadow ring-0 transition-transform duration-200 ease-in-out"></span>
+</button>
+</div>
+<div class="mt-lg pt-lg border-t border-surface-variant flex items-center justify-between">
+<span class="font-body-main text-body-main text-on-surface-variant">Require restart to apply font scaling changes.</span>
+<button class="h-11 px-lg bg-surface-container-high hover:bg-surface-variant text-on-surface font-label-bold text-label-bold rounded transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">restart_alt</span>
+                                Restart Engine
+                            </button>
+</div>
+</div>
+</div>
+<!-- Secondary Actions -->
+<div class="flex justify-end gap-md mt-md">
+<button class="h-11 px-xl bg-surface-container-lowest border border-outline-variant text-on-surface hover:bg-surface-container-low font-label-bold text-label-bold rounded transition-colors">
+                        Reset Defaults
+                    </button>
+<button class="h-11 px-xl bg-primary text-on-primary hover:bg-surface-tint font-label-bold text-label-bold rounded transition-colors shadow-sm">
+                        Save Configuration
+                    </button>
+</div>
+</div>
+</main>
+</div>
+</body></html>

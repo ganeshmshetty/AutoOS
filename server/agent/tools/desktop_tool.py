@@ -3,16 +3,16 @@ import asyncio
 import pyautogui
 import logging
 from typing import Optional
-from server.agent.modules.file_module import handle_file_task
-from server.agent.modules.hardware_module import handle_hardware_task
-from server.agent.modules.settings_module import handle_settings_task
-from server.agent.modules.security_module import handle_security_task
-from server.agent.modules.process_module import handle_process_task
-from server.agent.modules.health_module import handle_health_task
-from server.agent.modules.diagnostic_module import handle_diagnostic_task
-from server.agent.modules.maintenance_module import handle_maintenance_task
-from server.agent.modules.browser_helper import handle_browser_help_task
-from server.agent.modules.tutorial_module import handle_tutorial_task
+from agent.modules.file_module import handle_file_task
+from agent.modules.hardware_module import handle_hardware_task
+from agent.modules.settings_module import handle_settings_task
+from agent.modules.security_module import handle_security_task
+from agent.modules.process_module import handle_process_task
+from agent.modules.health_module import handle_health_task
+from agent.modules.diagnostic_module import handle_diagnostic_task
+from agent.modules.maintenance_module import handle_maintenance_task
+from agent.modules.browser_helper import handle_browser_help_task
+from agent.modules.tutorial_module import handle_tutorial_task
 
 logger = logging.getLogger("AutoOS.desktop")
 

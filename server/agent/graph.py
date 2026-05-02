@@ -1,8 +1,8 @@
 from langgraph.graph import StateGraph, END
-from server.agent.state import AgentState
-from server.agent.nodes.planner import planner
-from server.agent.nodes.router import router
-from server.agent.nodes.executor import browser_executor, os_executor
+from agent.state import AgentState
+from agent.nodes.planner import planner
+from agent.nodes.router import router
+from agent.nodes.executor import browser_executor, os_executor
 
 def create_graph():
     workflow = StateGraph(AgentState)

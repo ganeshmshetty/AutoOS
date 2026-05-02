@@ -3,7 +3,7 @@ from typing import Any
 from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import BaseModel, Field
 from langchain_core.runnables import RunnableConfig
-from server.agent.state import AgentState
+from agent.state import AgentState
 
 class Classification(BaseModel):
     next_action: str = Field(description="The classification of the task: 'browser' or 'os'")
@@ -49,7 +49,7 @@ async def planner(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     prediction = await structured_llm.ainvoke(prompt)
     
     # Emit event
-    from server.agent.bus import emit_event
+    from agent.bus import emit_event
     await emit_event(config, {
         "type": "classification",
         "category": prediction.next_action

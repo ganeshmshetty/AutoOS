@@ -24,33 +24,33 @@ async def run_os_task(
 
     match sub_category:
         case "app_launch":
-            from server.agent.modules import app_module
+            from agent.modules import app_module
             return await app_module.run(task, entities, action_params)
         case "file_ops":
-            from server.agent.modules import file_module
+            from agent.modules import file_module
             return await file_module.run(task, entities, action_params)
         case "hardware":
-            from server.agent.modules import hardware_module
+            from agent.modules import hardware_module
             return await hardware_module.run(task, entities, action_params)
         case "settings":
-            from server.agent.modules import settings_module
+            from agent.modules import settings_module
             return await settings_module.run(task, entities, action_params)
         case "process_mgmt":
-            from server.agent.modules import process_module
+            from agent.modules import process_module
             return await process_module.run(task, entities, action_params)
         case "security":
-            from server.agent.modules import security_module
+            from agent.modules import security_module
             return await security_module.run(task, entities, action_params)
         case "diagnostics":
-            from server.agent.modules import diag_module
+            from agent.modules import diag_module
             return await diag_module.run(task, entities, action_params)
         case "vision":
-            from server.agent.modules import visual_module
+            from agent.modules import visual_module
             return await visual_module.run(task, entities, action_params)
         case "app_control":
-            from server.agent.modules import app_module
+            from agent.modules import app_module
             return await app_module.run(task, entities, action_params)
         case _:
             logger.warning("Unknown sub_category '%s', trying app_launch", sub_category)
-            from server.agent.modules import app_module
+            from agent.modules import app_module
             return await app_module.run(task, entities, action_params)

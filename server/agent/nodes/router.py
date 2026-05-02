@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 
-from server.agent.state import AgentState
+from agent.state import AgentState
 
 logger = logging.getLogger("AutoOS.router")
 

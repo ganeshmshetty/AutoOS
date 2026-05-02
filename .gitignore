@@ -8,7 +8,7 @@ venv/
 server/.venv/
 python_backend/
 backend/venv/
-
+backend
 # Python caches and tools
 .mypy_cache/
 .pytest_cache/

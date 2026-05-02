@@ -7,7 +7,12 @@ async def browser_executor(state: AgentState) -> dict[str, Any]:
     Executes the browser-based task.
     """
     task = state.get("task", "")
-    result = await run_browser_task(task)
+    result = await run_browser_task(
+        task,
+        headless=state.get("headless"),
+        input_values=state.get("input_values"),
+        max_steps=state.get("max_steps"),
+    )
     return {
         "result": result,
         "messages": [{"role": "assistant", "content": f"Browser Task Result: {result}"}]

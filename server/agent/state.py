@@ -12,3 +12,7 @@ class AgentState(TypedDict):
     plan: List[str]
     # Final result
     result: str
+    # Browser runtime options
+    headless: bool | None
+    input_values: dict[str, str] | None
+    max_steps: int | None

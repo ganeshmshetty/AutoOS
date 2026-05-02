@@ -8,9 +8,9 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
-from server.agent.graph import app_graph
-from server.agent.bus import manager, emit_event
-from server.routers.face_auth import router as face_auth_router
+from agent.graph import app_graph
+from agent.bus import manager, emit_event
+from routers.face_auth import router as face_auth_router
 from dotenv import load_dotenv
 
 logging.basicConfig(level=logging.INFO)
@@ -157,7 +157,7 @@ async def _run_agent_task(execution_id: str, task: str, params: dict | None = No
 @app.post("/api/automate/task", response_model=TaskResponse)
 async def automate_browser_task(request: TaskRequest):
     """Extension-friendly direct browser automation endpoint."""
-    from server.agent.tools.browser_tool import BrowserAutomationRunner
+    from agent.tools.browser_tool import BrowserAutomationRunner
 
     try:
         logger.info("Received browser automation task: %s", request.task)
@@ -227,7 +227,7 @@ async def startup_event():
 
 @app.post("/system/processes/kill")
 async def kill_process_api(data: dict):
-    from server.agent.nodes.executor import kill_process
+    from agent.nodes.executor import kill_process
     target = data.get("target")
     if not target:
         raise HTTPException(status_code=400, detail="Missing target process name or PID")

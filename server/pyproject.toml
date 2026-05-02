@@ -21,4 +21,5 @@ dependencies = [
     "pywin32>=306; sys_platform == 'win32'",
     "deepface>=0.0.99",
     "tf-keras>=2.21.0",
+    "faster-whisper>=1.2.1",
 ]

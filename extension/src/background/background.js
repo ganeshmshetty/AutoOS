@@ -1,7 +1,7 @@
 // background.js (service worker)
 // Manages workflow recording and storage (FIXED)
 
-const API_BASE_URL = 'http://localhost:5001';
+const API_BASE_URL = 'http://localhost:8765';
 
 let recordingState = {
     isRecording: false,
@@ -145,6 +145,9 @@ async function fetchWorkflowDescription(workflowId, events, startUrl) {
                 
                 console.log('Workflow description saved:', result.description);
                 
+                // Sync to AutoOS backend
+                syncToAutoOS(workflow);
+                
                 // Notify dashboard to refresh
                 chrome.runtime.sendMessage({ action: 'refresh_dashboard' }).catch(() => {});
             }
@@ -165,8 +168,30 @@ async function fetchWorkflowDescription(workflowId, events, startUrl) {
                 workflow.descriptionStatus = 'failed';
                 workflow.descriptionError = error.message;
                 store.put(workflow);
+                
+                // Still try to sync to AutoOS backend even without description
+                syncToAutoOS(workflow);
             }
         };
+    }
+}
+
+async function syncToAutoOS(workflow) {
+    try {
+        await fetch(`${API_BASE_URL}/api/workflows`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: workflow.aiTitle || workflow.name,
+                description: workflow.description || null,
+                steps: workflow.steps || null,
+                events: workflow.events || null,
+                source: "extension"
+            })
+        });
+        console.log('Workflow synced to AutoOS backend');
+    } catch (e) {
+        console.error('Failed to sync to AutoOS:', e);
     }
 }
 

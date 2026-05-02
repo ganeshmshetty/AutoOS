@@ -5,8 +5,15 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+let mainWindow = null;
+
+// Register custom protocol
+if (!app.isDefaultProtocolClient('autoos')) {
+  app.setAsDefaultProtocolClient('autoos');
+}
+
 function createWindow() {
-  const win = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     webPreferences: {
@@ -17,7 +24,7 @@ function createWindow() {
   });
 
   // Allow window.open to create native popups
-  win.webContents.setWindowOpenHandler(({ url }) => {
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     return {
       action: 'allow',
       overrideBrowserWindowOptions: {
@@ -36,12 +43,35 @@ function createWindow() {
 
   // In development, load from Vite dev server
   if (process.env.NODE_ENV === 'development' || !app.isPackaged) {
-    win.loadURL('http://localhost:5173');
-    // win.webContents.openDevTools();
+    mainWindow.loadURL('http://localhost:5173');
+    // mainWindow.webContents.openDevTools();
   } else {
-    win.loadFile(path.join(__dirname, '../dist/index.html'));
+    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 }
+
+// Handle deep links on macOS
+let initialDeepLink = null;
+
+import { ipcMain } from 'electron';
+
+ipcMain.handle('get-initial-deep-link', () => {
+  const link = initialDeepLink;
+  initialDeepLink = null;
+  return link;
+});
+
+app.on('open-url', (event, url) => {
+  event.preventDefault();
+  
+  if (mainWindow && !mainWindow.webContents.isLoading()) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+    mainWindow.webContents.send('deep-link', url);
+  } else {
+    initialDeepLink = url;
+  }
+});
 
 app.whenReady().then(() => {
   createWindow();

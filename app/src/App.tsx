@@ -210,7 +210,17 @@ const PopupApp = () => {
 
 type View = 'chat' | 'library' | 'settings'
 
-function App() {
+export type DBWorkflow = {
+  id: string
+  name: string
+  description?: string
+  steps?: any
+  events?: any
+  source: string
+  created_at: string
+}
+
+function App({ sharedWorkflowId, sharedData, sharedBlobId }: { sharedWorkflowId?: string | null, sharedData?: string | null, sharedBlobId?: string | null }) {
   const [view, setView]     = useState<View>('chat')
   const [input, setInput]   = useState('')
   const [busy, setBusy]     = useState(false)
@@ -220,6 +230,11 @@ function App() {
   const [execId, setExecId] = useState<string | null>(null)
   const [rec, setRec]       = useState(false)
   const [browserPopup, setBrowserPopup] = useState<BrowserPopup | null>(null)
+  
+  const [workflows, setWorkflows] = useState<DBWorkflow[]>([])
+  const [sharedWorkflow, setSharedWorkflow] = useState<DBWorkflow | null>(null)
+  const [saveWfIndex, setSaveWfIndex] = useState<number | null>(null)
+  const [saveWfName, setSaveWfName] = useState('')
 
   // Settings state
   const [apiKey, setApiKey]       = useState(localStorage.getItem('autoos_api_key') ?? '')
@@ -253,6 +268,89 @@ function App() {
     bc.addEventListener('message', handleBcMessage)
     return () => bc.removeEventListener('message', handleBcMessage)
   }, [browserPopup]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch library workflows
+  const fetchWorkflows = async () => {
+    try {
+      const res = await fetch('http://localhost:8765/api/workflows')
+      if (res.ok) setWorkflows(await res.json())
+    } catch (e) {
+      console.error("Failed to fetch workflows", e)
+    }
+  }
+
+  useEffect(() => {
+    if (view === 'library') fetchWorkflows()
+  }, [view])
+
+  // Handle shared workflow link from normal query params (browser fallback)
+  useEffect(() => {
+    if (sharedBlobId) {
+      fetch(`https://jsonblob.com/api/jsonBlob/${sharedBlobId}`)
+        .then(res => res.json())
+        .then(wf => {
+          if (wf && wf.name) setSharedWorkflow(wf)
+        })
+        .catch(console.error)
+    } else if (sharedData) {
+      try {
+        const wf = JSON.parse(decodeURIComponent(atob(sharedData)))
+        if (wf && wf.name) setSharedWorkflow(wf)
+      } catch (e) {
+        console.error("Failed to parse shared workflow", e)
+      }
+    } else if (sharedWorkflowId) {
+      fetch(`http://localhost:8765/api/workflows/${sharedWorkflowId}`)
+        .then(res => res.json())
+        .then(wf => {
+          if (wf && wf.id) setSharedWorkflow(wf)
+        })
+        .catch(console.error)
+    }
+  }, [sharedWorkflowId, sharedData, sharedBlobId])
+
+  // Handle native deep links (autoos://)
+  useEffect(() => {
+    // @ts-ignore
+    if (window.electronAPI) {
+      
+      const processUrl = (url: string) => {
+        try {
+          const parsed = new URL(url);
+          const blob = parsed.searchParams.get('blob');
+          const data = parsed.searchParams.get('data');
+          
+          if (blob) {
+            fetch(`https://jsonblob.com/api/jsonBlob/${blob}`)
+              .then(res => res.json())
+              .then(wf => { if (wf && wf.name) setSharedWorkflow(wf) })
+              .catch(console.error);
+          } else if (data) {
+            const wf = JSON.parse(decodeURIComponent(atob(data)));
+            if (wf && wf.name) setSharedWorkflow(wf);
+          }
+        } catch (err) {
+          console.error("Failed to process deep link", err);
+        }
+      };
+
+      // 1. Check if there is an initial URL waiting for us from app launch
+      // @ts-ignore
+      if (window.electronAPI.invoke) {
+        // @ts-ignore
+        window.electronAPI.invoke('get-initial-deep-link').then((url) => {
+          if (url) processUrl(url);
+        });
+      }
+
+      // 2. Listen for any future URLs while the app is already open
+      // @ts-ignore
+      if (window.electronAPI.onMessage) {
+        // @ts-ignore
+        window.electronAPI.onMessage('deep-link', processUrl);
+      }
+    }
+  }, []);
 
   // Broadcast state updates and open window
   const popupRef = useRef<Window | null>(null)
@@ -319,9 +417,10 @@ function App() {
 
   /* ── Run task ──────────────────────────────────────────────────────────── */
 
-  const run = async () => {
-    if (!input.trim() || busy) return
-    const task = input; setInput(''); setBusy(true)
+  const run = async (overrideTask?: string) => {
+    const taskToRun = overrideTask || input;
+    if (!taskToRun.trim() || busy) return
+    const task = taskToRun; setInput(''); setBusy(true)
     log(task, 'user')
     try {
       const res = await fetch('/executions', {
@@ -445,6 +544,34 @@ function App() {
     } catch { log('Failed to send response.', 'sys', 'error'); setBusy(false) }
   }
 
+  /* ── Save Workflow ─────────────────────────────────────────────────────── */
+  
+  const handleSaveWorkflow = async (name: string, i: number) => {
+    const precedingLogs = logs.slice(0, i).reverse();
+    const lastUserLogIndex = precedingLogs.findIndex(x => x.from === 'user');
+    const lastUserTask = precedingLogs[lastUserLogIndex]?.text || 'AutoOS Task';
+    
+    const relevantLogs = precedingLogs.slice(0, lastUserLogIndex).reverse();
+    const steps = relevantLogs.filter(l => l.kind === 'tool-call' || l.kind === 'tool-result').map(l => ({
+      tool: l.tool || l.text,
+      detail: l.detail
+    }));
+
+    try {
+      await fetch('http://localhost:8765/api/workflows', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          name, 
+          description: lastUserTask, 
+          steps: steps,
+          source: 'chat' 
+        })
+      });
+      setSaveWfIndex(null);
+      alert('Saved to your Library!');
+    } catch (err) { alert('Failed to save.'); }
+  }
+
   /* ── Render a single log entry ─────────────────────────────────────────── */
 
   const renderLog = (l: Log, i: number) => {
@@ -496,6 +623,36 @@ function App() {
       <div key={key} className="msg">
         <div className="bubble sys">
           <div className={cls}>{icon}<span>{l.text}</span></div>
+          {l.kind === 'ok' && (
+            <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--border)' }}>
+              {saveWfIndex === i ? (
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <input type="text" className="setting-input" style={{ margin: 0, padding: '4px 8px', fontSize: '12px' }}
+                         autoFocus
+                         value={saveWfName} onChange={e => setSaveWfName(e.target.value)}
+                         onKeyDown={async e => {
+                           if (e.key === 'Enter') {
+                             handleSaveWorkflow(saveWfName, i);
+                           } else if (e.key === 'Escape') {
+                             setSaveWfIndex(null);
+                           }
+                         }} />
+                  <button className="run-btn" style={{ padding: '4px 8px', fontSize: '12px' }}
+                          onClick={() => handleSaveWorkflow(saveWfName, i)}>Save</button>
+                  <button className="icon-btn" style={{ padding: '4px' }} onClick={() => setSaveWfIndex(null)}><I.X /></button>
+                </div>
+              ) : (
+                <button className="run-btn" style={{ padding: '6px 12px', background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
+                  onClick={() => {
+                    const lastUserTask = logs.slice(0, i).reverse().find(x => x.from === 'user')?.text || 'AutoOS Task';
+                    setSaveWfName(lastUserTask.slice(0, 50));
+                    setSaveWfIndex(i);
+                  }}>
+                  <I.Folder /> Save as Workflow
+                </button>
+              )}
+            </div>
+          )}
           <span className="ts">{l.time}</span>
         </div>
       </div>
@@ -595,19 +752,64 @@ function App() {
           <div className="library-container">
             <h2>Workflows</h2>
             <div className="grid">
-              {[
-                { name: 'Check Morning Email',  desc: 'Opens Gmail and summarizes unread messages.', date: 'Today' },
-                { name: 'Book Flights',          desc: 'Searches Kayak for weekend flights to NYC.',  date: 'Yesterday' },
-                { name: 'Clear Downloads',       desc: 'Moves files older than 30 days to Trash.',    date: 'Last Week' },
-              ].map((wf, i) => (
-                <div className="card" key={i}>
+              {workflows.length === 0 ? (
+                <div className="empty-state">No workflows saved yet. Recorded workflows from the extension will appear here.</div>
+              ) : workflows.map((wf) => (
+                <div className="card" key={wf.id}>
                   <h3>{wf.name}</h3>
-                  <p>{wf.desc}</p>
+                  <p>{wf.description || 'No description available.'}</p>
                   <div className="card-footer">
-                    <span className="meta">Last run: {wf.date}</span>
-                    <button className="run-btn" onClick={() => { setInput(wf.desc); setView('chat') }}>
-                      <I.Play /> Run
-                    </button>
+                    <span className="meta">{new Date(wf.created_at).toLocaleDateString()} • {wf.source}</span>
+                    <div className="wf-actions" style={{ display: 'flex', gap: '8px' }}>
+                      <button className="run-btn" title="Run workflow" onClick={() => { 
+                        let cmd = wf.description || wf.name;
+                        if (wf.source === 'extension' && wf.events) {
+                          cmd = `Execute this exact browser workflow: ${JSON.stringify(wf.events)}`;
+                        } else if (wf.steps && wf.steps.length > 0) {
+                          cmd += `\n\nContext from previous successful run:\n` + JSON.stringify(wf.steps);
+                        }
+                        setView('chat'); 
+                        run(cmd); 
+                      }}>
+                        <I.Play /> Run
+                      </button>
+                      <button className="icon-btn" title="Copy Link" onClick={async () => {
+                        try {
+                          const res = await fetch('http://localhost:8765/api/share', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(wf)
+                          });
+                          if (!res.ok) throw new Error("Backend failed to create share link");
+                          const data = await res.json();
+                          const blobId = data.blob_id;
+                          if (blobId) {
+                            const url = `autoos://share?blob=${blobId}`;
+                            navigator.clipboard.writeText(url);
+                            alert('Direct App Link copied: ' + url);
+                          } else {
+                            throw new Error("No blob ID");
+                          }
+                        } catch (e) {
+                          console.error("Online share failed, using fallback:", e);
+                          // Fallback to offline base64
+                          const wfData = btoa(encodeURIComponent(JSON.stringify(wf)));
+                          const url = `autoos://share?data=${wfData}`;
+                          navigator.clipboard.writeText(url);
+                          alert('Offline direct app link copied to clipboard!');
+                        }
+                      }}>
+                        <I.Zap />
+                      </button>
+                      <button className="icon-btn stop-btn" title="Delete" onClick={async () => {
+                        if (confirm('Delete this workflow?')) {
+                          await fetch(`http://localhost:8765/api/workflows/${wf.id}`, { method: 'DELETE' });
+                          fetchWorkflows();
+                        }
+                      }}>
+                        <I.X />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -700,12 +902,43 @@ function App() {
           </div>
         </div>
       )}
+      {/* ── Shared workflow prompt ───────────────────────────────────────── */}
+      {sharedWorkflow && (
+        <div className="hitl-overlay">
+          <div className="hitl-modal" style={{ maxWidth: '500px' }}>
+            <h3>Shared Workflow Received</h3>
+            <p style={{ margin: '12px 0', opacity: 0.8 }}>
+              Someone shared the workflow <strong>"{sharedWorkflow.name}"</strong> with you. Would you like to run it now?
+            </p>
+            <div className="hitl-actions">
+              <button className="secondary-btn" onClick={() => setSharedWorkflow(null)}>
+                Cancel
+              </button>
+              <button className="primary-btn" onClick={() => {
+                let cmd = sharedWorkflow.description || sharedWorkflow.name;
+                if (sharedWorkflow.source === 'extension' && sharedWorkflow.events) {
+                  cmd = `Execute this exact browser workflow: ${JSON.stringify(sharedWorkflow.events)}`;
+                }
+                setInput(cmd);
+                setSharedWorkflow(null);
+              }}>
+                Load Workflow
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
 
 export default function Root() {
   const isPopup = new URLSearchParams(window.location.search).get('popup') === 'true'
+  const workflowId = new URLSearchParams(window.location.search).get('workflow_id')
+  const sharedData = new URLSearchParams(window.location.search).get('share')
+  const sharedBlobId = new URLSearchParams(window.location.search).get('blob')
+  
   if (isPopup) return <PopupApp />
-  return <App />
+  return <App sharedWorkflowId={workflowId} sharedData={sharedData} sharedBlobId={sharedBlobId} />
 }

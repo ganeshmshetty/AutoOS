@@ -15,12 +15,24 @@ load_dotenv(Path(__file__).with_name(".env"), override=True)
 from agent.graph import app_graph
 from agent.bus import manager, emit_event
 from routers.voice import router as voice_router
+from db import init_db, get_session
+from models.workflow import Workflow
+from fastapi import Depends, HTTPException
+from sqlmodel import Session, select
+import httpx
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("AutoOS")
 
-app = FastAPI(title="AutoOS Gateway API")
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
+app = FastAPI(title="AutoOS Gateway API", lifespan=lifespan)
 
 # Add CORS
 app.add_middleware(
@@ -33,7 +45,49 @@ app.add_middleware(
 
 app.include_router(voice_router)
 
+# --- Workflow Endpoints ---
 
+@app.post("/api/workflows", response_model=Workflow)
+def create_workflow(workflow: Workflow, session: Session = Depends(get_session)):
+    session.add(workflow)
+    session.commit()
+    session.refresh(workflow)
+    return workflow
+
+@app.get("/api/workflows", response_model=List[Workflow])
+def list_workflows(session: Session = Depends(get_session)):
+    return session.exec(select(Workflow).order_by(Workflow.created_at.desc())).all()
+
+@app.get("/api/workflows/{workflow_id}", response_model=Workflow)
+def get_workflow(workflow_id: str, session: Session = Depends(get_session)):
+    workflow = session.get(Workflow, workflow_id)
+    if not workflow:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    return workflow
+
+@app.delete("/api/workflows/{workflow_id}")
+def delete_workflow(workflow_id: str, session: Session = Depends(get_session)):
+    workflow = session.get(Workflow, workflow_id)
+    if not workflow:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    session.delete(workflow)
+    session.commit()
+    return {"ok": True}
+
+@app.post("/api/share")
+async def share_workflow(workflow: dict):
+    async with httpx.AsyncClient() as client:
+        res = await client.post("https://jsonblob.com/api/jsonBlob", json=workflow)
+        blob_id = res.headers.get("x-jsonblob-id")
+        if not blob_id:
+            location = res.headers.get("location")
+            if location:
+                blob_id = location.split("/")[-1]
+        if not blob_id:
+            raise HTTPException(status_code=500, detail="Failed to retrieve share ID from jsonblob")
+        return {"blob_id": blob_id}
+
+# --- Task Endpoints ---
 class TaskRequest(BaseModel):
     task: str
 

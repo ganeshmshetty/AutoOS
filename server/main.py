@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
 from server.agent.graph import app_graph
 from server.agent.bus import manager, emit_event
+from server.routers.face_auth import router as face_auth_router
 from dotenv import load_dotenv
 
 logging.basicConfig(level=logging.INFO)
@@ -27,6 +28,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(face_auth_router)
 
 # ── Static Files ─────────────────────────────────────────────────────────────
 os.makedirs(os.path.join(os.path.dirname(__file__), "screenshots"), exist_ok=True)

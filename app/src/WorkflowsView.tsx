@@ -25,6 +25,8 @@ interface Workflow {
 interface WorkflowsViewProps {
   handleRun: (task: string) => Promise<void>;
   isRunning: boolean;
+  faceRegistered?: boolean;
+  setFaceAuthAction?: (action: any) => void;
 }
 
 const GRADIENTS = [
@@ -35,7 +37,7 @@ const GRADIENTS = [
   "linear-gradient(135deg, #06b6d4 0%, #8b5cf6 100%)"
 ];
 
-function WorkflowsView({ handleRun, isRunning }: WorkflowsViewProps) {
+function WorkflowsView({ handleRun, isRunning, faceRegistered, setFaceAuthAction }: WorkflowsViewProps) {
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [activeWorkflow, setActiveWorkflow] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
@@ -47,6 +49,17 @@ function WorkflowsView({ handleRun, isRunning }: WorkflowsViewProps) {
   const [wfSteps, setWfSteps] = useState<string[]>(['']);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleFaceVerified = (e: any) => {
+      const { mode, workflow } = e.detail;
+      if (mode === 'verify' && workflow) {
+        executeWorkflowSteps(workflow);
+      }
+    };
+    window.addEventListener('face-verified', handleFaceVerified);
+    return () => window.removeEventListener('face-verified', handleFaceVerified);
+  }, [isRunning]); // Depend on isRunning so executeWorkflowSteps has the latest scope
 
   const fetchWorkflows = async () => {
     try {
@@ -123,7 +136,7 @@ function WorkflowsView({ handleRun, isRunning }: WorkflowsViewProps) {
     event.target.value = '';
   };
 
-  const runWorkflow = async (wf: Workflow) => {
+  const executeWorkflowSteps = async (wf: Workflow) => {
     if (isRunning) return;
     setActiveWorkflow(wf.id);
     setCurrentStep(0);
@@ -143,6 +156,14 @@ function WorkflowsView({ handleRun, isRunning }: WorkflowsViewProps) {
     setCurrentStep(0);
   };
 
+  const runWorkflow = async (wf: Workflow) => {
+    if (faceRegistered && setFaceAuthAction) {
+      setFaceAuthAction({ mode: 'verify', task: '', workflow: wf });
+    } else {
+      executeWorkflowSteps(wf);
+    }
+  };
+
   return (
     <div className="workflows-container">
       <header className="view-header">
@@ -151,6 +172,11 @@ function WorkflowsView({ handleRun, isRunning }: WorkflowsViewProps) {
           <p>Execute complex routines with a single click.</p>
         </div>
         <div className="header-actions">
+          {setFaceAuthAction && (
+            <button className="import-wf-btn" onClick={() => setFaceAuthAction({ mode: 'register' })}>
+              {faceRegistered ? 'Re-register Face' : 'Register Face'}
+            </button>
+          )}
           <input 
             type="file" 
             ref={fileInputRef} 

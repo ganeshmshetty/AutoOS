@@ -20,6 +20,8 @@ import WorkflowsView from './WorkflowsView';
 import { Message } from './types';
 import './index.css';
 
+import { FaceAuthModal } from './FaceAuthModal';
+
 // --- Shared Types ---
 declare global {
   interface Window {
@@ -75,6 +77,17 @@ function App() {
     type: 'task'
   });
   const [miniInput, setMiniInput] = useState('');
+  
+  // --- Face Auth State ---
+  const [faceRegistered, setFaceRegistered] = useState(false);
+  const [faceAuthAction, setFaceAuthAction] = useState<{ mode: 'register' } | { mode: 'verify', task: string, workflow: any } | null>(null);
+
+  useEffect(() => {
+    fetch('http://localhost:8765/api/face-auth/status')
+      .then(res => res.json())
+      .then(data => setFaceRegistered(data.registered))
+      .catch(console.error);
+  }, []);
   
   const ws = useRef<WebSocket | null>(null);
   const guardianWs = useRef<WebSocket | null>(null);
@@ -262,13 +275,41 @@ function App() {
                   />
                 } />
                 <Route path="/dashboard" element={<DashboardView />} />
-                <Route path="/workflows" element={<WorkflowsView handleRun={handleRun} isRunning={isRunning} />} />
+                <Route path="/workflows" element={<WorkflowsView handleRun={handleRun} isRunning={isRunning} faceRegistered={faceRegistered} setFaceAuthAction={setFaceAuthAction} />} />
                 <Route path="/skills" element={<SkillsView />} />
               </Routes>
             </div>
           </div>
         </Router>
       </div>
+
+      {/* --- Face Auth Modal --- */}
+      {faceAuthAction && (
+        <FaceAuthModal 
+          mode={faceAuthAction.mode}
+          onCancel={() => setFaceAuthAction(null)}
+          onSuccess={() => {
+            if (faceAuthAction.mode === 'register') {
+              setFaceRegistered(true);
+              setFaceAuthAction(null);
+              alert('Master face registered successfully!');
+            } else if (faceAuthAction.mode === 'verify') {
+              // Wait, handleRun expects a task string, but WorkflowsView has its own logic for running a sequence.
+              // Actually, we should just let WorkflowsView handle the running if verified.
+              // We can fire a custom event or let App handle the looping. 
+              // Wait! In WorkflowsView, runWorkflow is a loop. If we pass the workflow object, we can execute it here?
+              // No, it's better to just pass a callback or let WorkflowsView handle it. Let's just set verified status globally or handle the run loop in WorkflowsView.
+              // Wait, I will just set a global boolean "faceVerifiedForWorkflow: string" or something.
+              // Let's pass the whole workflow object, and if verified, we call a function or we let WorkflowsView watch the state.
+              // Or we can just call handleRun from WorkflowsView *after* setting faceVerified. Let me change this.
+              
+              // Let's just create an event dispatcher here.
+              window.dispatchEvent(new CustomEvent('face-verified', { detail: faceAuthAction }));
+              setFaceAuthAction(null);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

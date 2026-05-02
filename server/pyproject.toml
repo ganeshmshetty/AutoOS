@@ -17,6 +17,8 @@ dependencies = [
     "playwright>=1.49.0",
     "gui-agents>=0.1.0",
     "pyautogui>=0.9.54",
-    "pywinauto>=0.6.8",
-    "pywin32>=306",
+    "pywinauto>=0.6.8; sys_platform == 'win32'",
+    "pywin32>=306; sys_platform == 'win32'",
+    "deepface>=0.0.99",
+    "tf-keras>=2.21.0",
 ]

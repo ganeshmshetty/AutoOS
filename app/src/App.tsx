@@ -283,25 +283,15 @@ function App() {
 
       {/* --- Face Auth Modal --- */}
       {faceAuthAction && (
-        <FaceAuthModal 
+        <FaceAuthModal
           mode={faceAuthAction.mode}
           onCancel={() => setFaceAuthAction(null)}
           onSuccess={() => {
             if (faceAuthAction.mode === 'register') {
               setFaceRegistered(true);
               setFaceAuthAction(null);
-              alert('Master face registered successfully!');
             } else if (faceAuthAction.mode === 'verify') {
-              // Wait, handleRun expects a task string, but WorkflowsView has its own logic for running a sequence.
-              // Actually, we should just let WorkflowsView handle the running if verified.
-              // We can fire a custom event or let App handle the looping. 
-              // Wait! In WorkflowsView, runWorkflow is a loop. If we pass the workflow object, we can execute it here?
-              // No, it's better to just pass a callback or let WorkflowsView handle it. Let's just set verified status globally or handle the run loop in WorkflowsView.
-              // Wait, I will just set a global boolean "faceVerifiedForWorkflow: string" or something.
-              // Let's pass the whole workflow object, and if verified, we call a function or we let WorkflowsView watch the state.
-              // Or we can just call handleRun from WorkflowsView *after* setting faceVerified. Let me change this.
-              
-              // Let's just create an event dispatcher here.
+              // Dispatch event so WorkflowsView can start the workflow sequence
               window.dispatchEvent(new CustomEvent('face-verified', { detail: faceAuthAction }));
               setFaceAuthAction(null);
             }

@@ -157,11 +157,18 @@ function WorkflowsView({ handleRun, isRunning, faceRegistered, setFaceAuthAction
   };
 
   const runWorkflow = async (wf: Workflow) => {
-    if (faceRegistered && setFaceAuthAction) {
-      setFaceAuthAction({ mode: 'verify', task: '', workflow: wf });
-    } else {
+    if (!setFaceAuthAction) {
+      // No face auth wired — run directly
       executeWorkflowSteps(wf);
+      return;
     }
+    if (!faceRegistered) {
+      // Not yet registered — ask user to register their face first
+      alert('Face authentication is required to run workflows.\n\nPlease click "Register Face" to set up your face ID first.');
+      return;
+    }
+    // Face registered — require verification before running
+    setFaceAuthAction({ mode: 'verify', task: '', workflow: wf });
   };
 
   return (
@@ -173,8 +180,13 @@ function WorkflowsView({ handleRun, isRunning, faceRegistered, setFaceAuthAction
         </div>
         <div className="header-actions">
           {setFaceAuthAction && (
-            <button className="import-wf-btn" onClick={() => setFaceAuthAction({ mode: 'register' })}>
-              {faceRegistered ? 'Re-register Face' : 'Register Face'}
+            <button
+              className="import-wf-btn"
+              onClick={() => setFaceAuthAction({ mode: 'register' })}
+              style={!faceRegistered ? { borderColor: '#f59e0b', color: '#f59e0b' } : {}}
+              title={!faceRegistered ? 'Register your face to enable workflow authentication' : 'Update registered face'}
+            >
+              {faceRegistered ? '✓ Re-register Face' : '⚠ Register Face'}
             </button>
           )}
           <input 

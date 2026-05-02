@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
-import { Camera, ShieldCheck, RefreshCw } from 'lucide-react';
+import { Camera, ShieldCheck, RefreshCw, CheckCircle } from 'lucide-react';
 
 interface FaceAuthModalProps {
   mode: 'register' | 'verify';
@@ -7,36 +7,38 @@ interface FaceAuthModalProps {
   onCancel: () => void;
 }
 
+type Step = 'camera' | 'preview' | 'sending' | 'success' | 'error';
+
 export function FaceAuthModal({ mode, onSuccess, onCancel }: FaceAuthModalProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);   // use ref, not state, to avoid stale closure
+  const streamRef = useRef<MediaStream | null>(null);
   const [cameraReady, setCameraReady] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [step, setStep] = useState<Step>('camera');
+  const [capturedImage, setCapturedImage] = useState<string | null>(null); // base64 data URL
+  const [errorMsg, setErrorMsg] = useState('');
 
-  // Start camera on mount, stop on unmount — using ref so cleanup always sees the stream
+  const isRegister = mode === 'register';
+
+  // ── Start camera on mount, stop on unmount ─────────────────────────────────
   useEffect(() => {
     let cancelled = false;
 
     navigator.mediaDevices
-      .getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } })
+      .getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+      })
       .then((s) => {
-        if (cancelled) {
-          s.getTracks().forEach((t) => t.stop());
-          return;
-        }
+        if (cancelled) { s.getTracks().forEach((t) => t.stop()); return; }
         streamRef.current = s;
-        if (videoRef.current) {
-          videoRef.current.srcObject = s;
-        }
+        if (videoRef.current) videoRef.current.srcObject = s;
       })
       .catch((err) => {
         if (!cancelled) {
-          setError('Camera access denied or unavailable. Please allow camera access and try again.');
-          console.error('Camera error:', err);
+          setErrorMsg('Camera access denied or unavailable. Please allow camera permissions and try again.');
+          setStep('error');
         }
+        console.error('Camera error:', err);
       });
 
     return () => {
@@ -46,45 +48,70 @@ export function FaceAuthModal({ mode, onSuccess, onCancel }: FaceAuthModalProps)
     };
   }, []);
 
-  const handleRetry = useCallback(() => {
-    setError(null);
-    setLoading(false);
+  // ── Stop camera once we no longer need the live feed ───────────────────────
+  const stopCamera = useCallback(() => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
   }, []);
 
-  const captureAndSend = useCallback(async () => {
+  // ── Step 1 → 2: take a still photo ────────────────────────────────────────
+  const takePhoto = useCallback(() => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
-
     if (!video || !canvas) return;
 
-    // Guard: video must be playing and have valid dimensions
     if (video.videoWidth === 0 || video.videoHeight === 0) {
-      setError('Camera is not ready yet. Please wait a moment and try again.');
+      setErrorMsg('Camera is still loading — please wait a moment and try again.');
+      setStep('error');
       return;
     }
 
-    setLoading(true);
-    setError(null);
-
-    // Capture frame to canvas
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      setError('Could not access canvas context.');
-      setLoading(false);
-      return;
-    }
+    if (!ctx) return;
+
+    // Draw mirrored (same as the video preview)
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const base64Image = canvas.toDataURL('image/jpeg', 0.92);
 
-    const endpoint = mode === 'register' ? '/api/face-auth/register' : '/api/face-auth/verify';
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+    setCapturedImage(dataUrl);
+    setStep('preview');
+    // Stop the live feed — we have the photo
+    stopCamera();
+  }, [stopCamera]);
 
+  // ── Step 2 → camera: retake ────────────────────────────────────────────────
+  const retake = useCallback(() => {
+    setCapturedImage(null);
+    setStep('camera');
+    setCameraReady(false);
+    // Restart camera
+    navigator.mediaDevices
+      .getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } })
+      .then((s) => {
+        streamRef.current = s;
+        if (videoRef.current) videoRef.current.srcObject = s;
+      })
+      .catch(() => {
+        setErrorMsg('Could not restart camera.');
+        setStep('error');
+      });
+  }, []);
+
+  // ── Step 2 → 3: send to backend ───────────────────────────────────────────
+  const confirmAndSend = useCallback(async () => {
+    if (!capturedImage) return;
+    setStep('sending');
+
+    const endpoint = isRegister ? '/api/face-auth/register' : '/api/face-auth/verify';
     try {
       const res = await fetch(`http://localhost:8765${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image_base64: base64Image }),
+        body: JSON.stringify({ image_base64: capturedImage }),
       });
 
       const data = await res.json();
@@ -93,58 +120,105 @@ export function FaceAuthModal({ mode, onSuccess, onCancel }: FaceAuthModalProps)
         throw new Error(data.detail || 'Request failed');
       }
 
-      if (mode === 'verify' && !data.verified) {
+      if (!isRegister && !data.verified) {
         throw new Error('Face does not match the registered owner. Please try again.');
       }
 
-      // Success — stop camera before calling onSuccess so the indicator turns off
-      setSuccess(true);
-      streamRef.current?.getTracks().forEach((t) => t.stop());
-      setTimeout(() => onSuccess(), 600); // brief flash of success state
+      setStep('success');
+      setTimeout(() => onSuccess(), 900);
     } catch (err: any) {
-      setError(err.message || 'An error occurred. Please try again.');
-      setLoading(false);
+      setErrorMsg(err.message || 'Something went wrong. Please try again.');
+      setStep('error');
     }
-  }, [mode, onSuccess]);
+  }, [capturedImage, isRegister, onSuccess]);
 
-  const isRegister = mode === 'register';
-  const btnLabel = loading
-    ? 'Processing...'
-    : success
-    ? isRegister ? '✓ Registered!' : '✓ Verified!'
-    : isRegister ? 'Capture & Register' : 'Verify & Run';
+  // ── Retry from error ───────────────────────────────────────────────────────
+  const retry = useCallback(() => {
+    setErrorMsg('');
+    setCapturedImage(null);
+    setStep('camera');
+    setCameraReady(false);
+    navigator.mediaDevices
+      .getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } })
+      .then((s) => {
+        streamRef.current = s;
+        if (videoRef.current) videoRef.current.srcObject = s;
+      })
+      .catch(() => {
+        setErrorMsg('Camera is not available.');
+        setStep('error');
+      });
+  }, []);
+
+  // ── Derived ────────────────────────────────────────────────────────────────
+  const title = isRegister ? 'Register Your Face' : 'Face Verification';
+  const subtitle =
+    step === 'camera'
+      ? isRegister
+        ? 'Position your face in the oval, then click "Take Photo".'
+        : 'Look at the camera and click "Take Photo" to verify your identity.'
+      : step === 'preview'
+      ? 'Happy with the shot? Click "Confirm" to proceed, or "Retake" to try again.'
+      : step === 'sending'
+      ? isRegister ? 'Saving your face…' : 'Verifying your identity…'
+      : step === 'success'
+      ? isRegister ? 'Face registered successfully!' : 'Identity confirmed!'
+      : 'Something went wrong.';
 
   return (
-    <div className="hitl-overlay" style={{ zIndex: 9999 }}>
-      <div className="hitl-modal" style={{ maxWidth: '420px', textAlign: 'center' }}>
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginBottom: '8px' }}>
-          {isRegister ? <Camera size={22} color="#38bdf8" /> : <ShieldCheck size={22} color="#38bdf8" />}
-          <h3 style={{ margin: 0 }}>
-            {isRegister ? 'Register Master Face' : 'Face Verification Required'}
-          </h3>
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 9999,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)',
+      }}
+    >
+      <div
+        style={{
+          background: '#0f172a',
+          border: '1px solid #1e293b',
+          borderRadius: '16px',
+          padding: '28px 24px',
+          width: '420px',
+          maxWidth: '95vw',
+          boxShadow: '0 25px 60px rgba(0,0,0,0.6)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '20px',
+        }}
+      >
+        {/* ── Header ── */}
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '10px' }}>
+            <div style={{
+              background: 'rgba(56,189,248,0.1)', borderRadius: '50%',
+              padding: '12px', display: 'inline-flex',
+            }}>
+              {isRegister ? <Camera size={28} color="#38bdf8" /> : <ShieldCheck size={28} color="#38bdf8" />}
+            </div>
+          </div>
+          <h2 style={{ margin: 0, color: '#f1f5f9', fontSize: '1.2rem', fontWeight: 700 }}>{title}</h2>
+          <p style={{ margin: '6px 0 0', color: '#64748b', fontSize: '0.875rem' }}>{subtitle}</p>
         </div>
-        <p style={{ opacity: 0.7, marginBottom: '16px', fontSize: '0.875rem' }}>
-          {isRegister
-            ? 'Position your face in the frame and click Capture.'
-            : 'Please verify your identity to run this workflow.'}
-        </p>
 
-        {/* Camera / Error area */}
+        {/* ── Camera / Preview frame ── */}
         <div
           style={{
             position: 'relative',
             width: '100%',
-            background: '#000',
-            borderRadius: '10px',
-            overflow: 'hidden',
             aspectRatio: '4/3',
-            marginBottom: '16px',
-            border: success ? '2px solid #10b981' : error ? '2px solid #ef4444' : '2px solid transparent',
+            borderRadius: '12px',
+            overflow: 'hidden',
+            background: '#000',
+            border: `2px solid ${
+              step === 'success' ? '#10b981' :
+              step === 'error'   ? '#ef4444' :
+              step === 'preview' ? '#38bdf8' : '#1e293b'
+            }`,
             transition: 'border-color 0.3s',
           }}
         >
-          {/* Video always mounted so the stream attaches immediately */}
+          {/* Live camera — always mounted, hidden when not in camera step */}
           <video
             ref={videoRef}
             autoPlay
@@ -152,60 +226,104 @@ export function FaceAuthModal({ mode, onSuccess, onCancel }: FaceAuthModalProps)
             muted
             onCanPlay={() => setCameraReady(true)}
             style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              display: error ? 'none' : 'block',
-              transform: 'scaleX(-1)', // mirror so it feels natural
+              position: 'absolute', inset: 0,
+              width: '100%', height: '100%', objectFit: 'cover',
+              transform: 'scaleX(-1)', // mirror for natural selfie feel
+              display: (step === 'camera') ? 'block' : 'none',
             }}
           />
 
-          {/* Overlay: camera-not-ready spinner */}
-          {!cameraReady && !error && (
-            <div style={{
-              position: 'absolute', inset: 0, display: 'flex',
-              alignItems: 'center', justifyContent: 'center',
-              color: '#64748b', fontSize: '0.85rem', flexDirection: 'column', gap: '8px',
-            }}>
-              <Camera size={32} opacity={0.4} />
-              <span>Starting camera…</span>
-            </div>
-          )}
-
-          {/* Overlay: face guide oval */}
-          {cameraReady && !error && !success && (
+          {/* Face oval guide */}
+          {step === 'camera' && cameraReady && (
             <div style={{
               position: 'absolute', inset: 0, display: 'flex',
               alignItems: 'center', justifyContent: 'center', pointerEvents: 'none',
             }}>
               <div style={{
-                width: '45%', aspectRatio: '3/4',
-                borderRadius: '50%',
-                border: '2px dashed rgba(56, 189, 248, 0.6)',
-                boxShadow: '0 0 0 2000px rgba(0,0,0,0.25)',
+                width: '44%', aspectRatio: '3/4', borderRadius: '50%',
+                border: '2px dashed rgba(56,189,248,0.7)',
+                boxShadow: '0 0 0 9999px rgba(0,0,0,0.3)',
               }} />
             </div>
           )}
 
-          {/* Success flash */}
-          {success && (
+          {/* Camera loading */}
+          {step === 'camera' && !cameraReady && (
             <div style={{
               position: 'absolute', inset: 0, display: 'flex',
-              alignItems: 'center', justifyContent: 'center',
-              background: 'rgba(16,185,129,0.25)', color: '#10b981', fontSize: '1.1rem', fontWeight: 600, gap: '8px',
+              flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              color: '#475569', gap: '10px',
             }}>
-              <ShieldCheck size={28} /> {isRegister ? 'Face Registered!' : 'Identity Confirmed!'}
+              <Camera size={36} opacity={0.4} />
+              <span style={{ fontSize: '0.85rem' }}>Starting camera…</span>
             </div>
           )}
 
+          {/* Captured photo preview */}
+          {step === 'preview' && capturedImage && (
+            <img
+              src={capturedImage}
+              alt="Captured"
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+          )}
+
+          {/* Sending overlay */}
+          {step === 'sending' && capturedImage && (
+            <>
+              <img
+                src={capturedImage}
+                alt="Captured"
+                style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'brightness(0.4)' }}
+              />
+              <div style={{
+                position: 'absolute', inset: 0, display: 'flex',
+                flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px',
+              }}>
+                <div style={{
+                  width: '36px', height: '36px', borderRadius: '50%',
+                  border: '3px solid rgba(56,189,248,0.2)', borderTopColor: '#38bdf8',
+                  animation: 'spin 0.8s linear infinite',
+                }} />
+                <span style={{ color: '#38bdf8', fontSize: '0.9rem', fontWeight: 500 }}>
+                  {isRegister ? 'Saving…' : 'Verifying…'}
+                </span>
+              </div>
+            </>
+          )}
+
+          {/* Success overlay */}
+          {step === 'success' && (
+            <>
+              {capturedImage && (
+                <img
+                  src={capturedImage}
+                  alt="Captured"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'brightness(0.4)' }}
+                />
+              )}
+              <div style={{
+                position: 'absolute', inset: 0, display: 'flex',
+                flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                gap: '10px', background: 'rgba(16,185,129,0.2)',
+              }}>
+                <CheckCircle size={48} color="#10b981" />
+                <span style={{ color: '#10b981', fontWeight: 700, fontSize: '1rem' }}>
+                  {isRegister ? 'Face Saved!' : 'Identity Confirmed!'}
+                </span>
+              </div>
+            </>
+          )}
+
           {/* Error display */}
-          {error && (
+          {step === 'error' && (
             <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              height: '100%', padding: '24px', color: '#ef4444', fontSize: '0.875rem',
-              background: 'rgba(239,68,68,0.08)',
+              position: 'absolute', inset: 0, display: 'flex',
+              flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              padding: '24px', gap: '10px', background: 'rgba(239,68,68,0.08)',
+              textAlign: 'center',
             }}>
-              {error}
+              <span style={{ color: '#ef4444', fontSize: '0.875rem', lineHeight: 1.5 }}>{errorMsg}</span>
             </div>
           )}
 
@@ -213,29 +331,92 @@ export function FaceAuthModal({ mode, onSuccess, onCancel }: FaceAuthModalProps)
           <canvas ref={canvasRef} style={{ display: 'none' }} />
         </div>
 
-        {/* Actions */}
-        <div className="hitl-actions" style={{ justifyContent: 'center', gap: '12px' }}>
-          <button className="secondary-btn" onClick={onCancel} disabled={loading || success}>
-            Cancel
-          </button>
-
-          {error ? (
-            <button className="primary-btn" onClick={handleRetry} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <RefreshCw size={16} /> Try Again
-            </button>
-          ) : (
+        {/* ── Action buttons ── */}
+        <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+          {/* Cancel — always visible except during sending/success */}
+          {step !== 'sending' && step !== 'success' && (
             <button
-              className="primary-btn"
-              onClick={captureAndSend}
-              disabled={loading || success || !cameraReady}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+              onClick={onCancel}
+              style={{
+                padding: '10px 20px', borderRadius: '8px', border: '1px solid #1e293b',
+                background: 'transparent', color: '#94a3b8', cursor: 'pointer',
+                fontSize: '0.875rem', fontWeight: 500,
+              }}
             >
-              {isRegister ? <Camera size={16} /> : <ShieldCheck size={16} />}
-              {btnLabel}
+              Cancel
+            </button>
+          )}
+
+          {/* CAMERA step: Take Photo */}
+          {step === 'camera' && (
+            <button
+              onClick={takePhoto}
+              disabled={!cameraReady}
+              style={{
+                padding: '10px 24px', borderRadius: '8px', border: 'none',
+                background: cameraReady ? 'linear-gradient(135deg, #38bdf8, #818cf8)' : '#1e293b',
+                color: cameraReady ? '#fff' : '#475569',
+                cursor: cameraReady ? 'pointer' : 'not-allowed',
+                fontSize: '0.875rem', fontWeight: 600,
+                display: 'flex', alignItems: 'center', gap: '8px',
+                transition: 'all 0.2s',
+              }}
+            >
+              <Camera size={16} />
+              {cameraReady ? 'Take Photo' : 'Loading camera…'}
+            </button>
+          )}
+
+          {/* PREVIEW step: Retake + Confirm */}
+          {step === 'preview' && (
+            <>
+              <button
+                onClick={retake}
+                style={{
+                  padding: '10px 20px', borderRadius: '8px', border: '1px solid #1e293b',
+                  background: 'transparent', color: '#94a3b8', cursor: 'pointer',
+                  fontSize: '0.875rem', fontWeight: 500,
+                  display: 'flex', alignItems: 'center', gap: '6px',
+                }}
+              >
+                <RefreshCw size={14} /> Retake
+              </button>
+              <button
+                onClick={confirmAndSend}
+                style={{
+                  padding: '10px 24px', borderRadius: '8px', border: 'none',
+                  background: 'linear-gradient(135deg, #38bdf8, #818cf8)',
+                  color: '#fff', cursor: 'pointer',
+                  fontSize: '0.875rem', fontWeight: 600,
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                }}
+              >
+                <CheckCircle size={16} />
+                {isRegister ? 'Confirm & Save' : 'Confirm & Verify'}
+              </button>
+            </>
+          )}
+
+          {/* ERROR step: Try Again */}
+          {step === 'error' && (
+            <button
+              onClick={retry}
+              style={{
+                padding: '10px 24px', borderRadius: '8px', border: 'none',
+                background: 'linear-gradient(135deg, #38bdf8, #818cf8)',
+                color: '#fff', cursor: 'pointer',
+                fontSize: '0.875rem', fontWeight: 600,
+                display: 'flex', alignItems: 'center', gap: '8px',
+              }}
+            >
+              <RefreshCw size={16} /> Try Again
             </button>
           )}
         </div>
       </div>
+
+      {/* Spin animation */}
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

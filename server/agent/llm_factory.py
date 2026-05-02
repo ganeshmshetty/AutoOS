@@ -8,11 +8,13 @@ automatically falls through to the next.
 """
 from __future__ import annotations
 
+import asyncio
 import itertools
 import logging
 import os
+import threading
 import time
-from typing import Iterator
+from typing import Iterator, Callable, Any
 
 from langchain_google_genai import ChatGoogleGenerativeAI
 
@@ -39,18 +41,19 @@ def _load_keys() -> list[str]:
 
 _KEY_POOL: list[str] = []
 _KEY_CYCLE: Iterator[str] | None = None
-
+_KEY_LOCK = threading.Lock()
 
 def _get_cycle() -> Iterator[str]:
     global _KEY_POOL, _KEY_CYCLE
-    if _KEY_CYCLE is None:
-        _KEY_POOL = _load_keys()
-        _KEY_CYCLE = itertools.cycle(_KEY_POOL)
-    return _KEY_CYCLE
-
+    with _KEY_LOCK:
+        if _KEY_CYCLE is None:
+            _KEY_POOL = _load_keys()
+            _KEY_CYCLE = itertools.cycle(_KEY_POOL)
+        return _KEY_CYCLE
 
 def _next_key() -> str:
-    return next(_get_cycle())
+    with _KEY_LOCK:
+        return next(_get_cycle())
 
 
 # ---------------------------------------------------------------------------
@@ -77,19 +80,25 @@ def get_llm(
     )
 
 
-async def invoke_with_fallback(llm_chain, prompt: str, retries: int | None = None):
+async def invoke_with_fallback(chain_factory: Callable[[], Any], prompt: str, retries: int | None = None):
     """
     Invoke an LLM chain (structured or plain) with automatic key fallback.
 
     On a 429 / ResourceExhausted the call is retried using the next key.
     `retries` defaults to the number of keys in the pool.
     """
-    max_tries = retries or len(_KEY_POOL or _load_keys())
+    _get_cycle()  # Ensure key pool is initialized safely
+    max_tries = retries if retries is not None else len(_KEY_POOL)
+    
+    if max_tries < 1:
+        max_tries = 1
+        
     last_exc: Exception | None = None
 
     for attempt in range(max_tries):
         try:
-            return await llm_chain.ainvoke(prompt)
+            chain = chain_factory()
+            return await chain.ainvoke(prompt)
         except Exception as exc:  # noqa: BLE001
             msg = str(exc).lower()
             is_rate_limit = any(
@@ -101,8 +110,10 @@ async def invoke_with_fallback(llm_chain, prompt: str, retries: int | None = Non
                 )
                 last_exc = exc
                 # Small back-off before rotating
-                time.sleep(1.5)
+                await asyncio.sleep(1.5)
                 continue
             raise
 
-    raise last_exc  # type: ignore[misc]
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError("No LLM key loaders succeeded.")

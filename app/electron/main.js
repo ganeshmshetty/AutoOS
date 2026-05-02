@@ -5,10 +5,11 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+let mainWindow;
+
 function createWindow() {
-  const win = new BrowserWindow({
-    width: 900, // Widened to accommodate sidebar
-    height: 700,
+  mainWindow = new BrowserWindow({
+    width: 900,    height: 700,
     alwaysOnTop: true,
     autoHideMenuBar: true, // Remove the "ugly" menu bar
     title: "AutoOS Assistant",
@@ -19,19 +20,25 @@ function createWindow() {
     },
   });
 
-  ipcMain.on('resize-window', (event, { width, height }) => {
-    win.setSize(width, height, true);
-    win.setResizable(width >= 900);
+  mainWindow.on('closed', () => {
+    mainWindow = null;
   });
 
   // In development, load from Vite dev server
   if (process.env.NODE_ENV === 'development' || !app.isPackaged) {
-    win.loadURL('http://localhost:5173');
-    // win.webContents.openDevTools();
+    mainWindow.loadURL('http://localhost:5173');
+    // mainWindow.webContents.openDevTools();
   } else {
-    win.loadFile(path.join(__dirname, '../dist/index.html'));
+    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 }
+
+ipcMain.on('resize-window', (event, { width, height }) => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.setSize(width, height, true);
+    mainWindow.setResizable(width >= 900);
+  }
+});
 
 app.whenReady().then(() => {
   createWindow();

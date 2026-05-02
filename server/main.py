@@ -63,20 +63,8 @@ async def stop_execution(execution_id: str):
     if task and not task.done():
         task.cancel()
         logger.info("Cancelled execution %s via REST", execution_id)
-        # Notify the frontend
-        await manager.send_message(execution_id, {
-            "type": "stopped",
-            "message": "Task stopped by user.",
-        })
         return {"status": "stopped"}
-    return {"status": "not_found"}
-
-
-@app.websocket("/ws/execution/{execution_id}")
-async def websocket_endpoint(websocket: WebSocket, execution_id: str):
-    await manager.connect(execution_id, websocket)
-    try:
-        while True:
+    return {"status": "not_found"}        while True:
             data = await websocket.receive_json()
 
             if data.get("type") == "start":
@@ -99,27 +87,18 @@ async def websocket_endpoint(websocket: WebSocket, execution_id: str):
                 if task and not task.done():
                     task.cancel()
                     logger.info("Cancelled execution %s via WebSocket stop message", execution_id)
-                await manager.send_message(execution_id, {
-                    "type": "stopped",
-                    "message": "Task stopped by user.",
-                })
-
+                # Let _run_agent_task's CancelledError handler notify the frontend
     except WebSocketDisconnect:
         # If the user closes the window, cancel any running task automatically
         task = _running_tasks.pop(execution_id, None)
         if task and not task.done():
             task.cancel()
         manager.disconnect(execution_id)
-    except Exception as e:
-        logger.error("WS Error: %s", e)
-        manager.disconnect(execution_id)
-
-
-async def _run_agent_task(execution_id: str, task: str, params: dict | None = None):
-    try:
-        initial_state = {
-            "task": task,
-            "messages": [],
+            elif data.get("type") == "stop":
+                task = _running_tasks.pop(execution_id, None)
+                if task and not task.done():
+                    task.cancel()
+                    logger.info("Cancelled execution %s via WebSocket stop message", execution_id)            "messages": [],
             "next_action": "",
             "sub_category": "",
             "entities": [],
@@ -142,11 +121,14 @@ async def _run_agent_task(execution_id: str, task: str, params: dict | None = No
     except asyncio.CancelledError:
         # Task was cancelled via the stop button — notify frontend
         logger.info("Agent task %s was cancelled", execution_id)
-        await manager.send_message(execution_id, {
-            "type": "stopped",
-            "message": "Task stopped by user.",
-        })
-    except Exception as e:
+        try:
+            await manager.send_message(execution_id, {
+                "type": "stopped",
+                "message": "Task stopped by user.",
+            })
+        except Exception:
+            # WebSocket may already be closed
+            pass    except Exception as e:
         logger.error("Agent task error: %s", e, exc_info=True)
         await manager.send_message(execution_id, {"type": "step_error", "error": str(e)})
 

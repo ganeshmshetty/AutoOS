@@ -26,8 +26,8 @@ logger = logging.getLogger("AutoOS.app_module")
 _SEARCH_ROOTS = [
     Path(os.environ.get("PROGRAMFILES", r"C:\Program Files")),
     Path(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)")),
-    Path(os.environ.get("LOCALAPPDATA", "")) / "Programs",
-    Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs",
+    Path(os.environ.get("LOCALAPPDATA") or r"C:\Users\Default\AppData\Local") / "Programs",
+    Path(os.environ.get("APPDATA") or r"C:\Users\Default\AppData\Roaming") / "Microsoft" / "Windows" / "Start Menu" / "Programs",
     Path(r"C:\ProgramData\Microsoft\Windows\Start Menu\Programs"),
     Path(os.path.expanduser("~")) / "Desktop",
     Path(os.path.expanduser("~")) / "AppData" / "Local",
@@ -108,7 +108,8 @@ async def _try_direct_search(aliases: list[str]) -> dict:
                             stem = exe.stem.lower().replace(" ", "").replace("-", "").replace("_", "")
                             if any(t in stem or stem in t for t in terms):
                                 candidates.append(exe)
-                    except: continue
+                    except Exception:
+                        continue
                 elif p.suffix.lower() == ".exe":
                     stem = p.stem.lower().replace(" ", "").replace("-", "").replace("_", "")
                     if any(t in stem or stem in t for t in terms):
@@ -119,7 +120,21 @@ async def _try_direct_search(aliases: list[str]) -> dict:
     if not candidates:
         return {"success": False}
 
-    best = min(candidates, key=lambda p: len(str(p)))
+    target = aliases[0].lower().replace(" ", "").replace("-", "").replace("_", "")
+
+    def score(p):
+        stem = p.stem.lower().replace(" ", "").replace("-", "").replace("_", "")
+        if stem == target:
+            match_score = 0
+        elif stem.startswith(target) or stem.endswith(target):
+            match_score = 1
+        elif target in stem:
+            match_score = 2
+        else:
+            match_score = 3
+        return (match_score, len(str(p)))
+
+    best = min(candidates, key=score)
     logger.debug("Direct search matched: %s", best)
     subprocess.Popen([str(best)], shell=False)
     return {
@@ -186,30 +201,44 @@ async def _try_shell_execute(app_name: str, aliases: list[str]) -> dict:
                     potential_uris.append(uri)
                     break
 
+    import shlex
+    import shutil
+
     candidates = potential_uris + [app_name] + aliases + [
         "calc.exe", "mspaint.exe", "notepad.exe",
-        app_name.lower().replace(" ", "") + ".exe",
-        app_name.lower().replace(" ", "-") + ".exe",
     ]
+    
     for candidate in candidates:
         try:
             if ":" in candidate and any(u in candidate for u in uri_map.values()):
                 os.startfile(candidate)
             else:
-                subprocess.Popen(candidate, shell=True)
-            await asyncio.sleep(1.0)
+                args = shlex.split(candidate)
+                if not args:
+                    continue
+                exe_path = shutil.which(args[0])
+                if not exe_path:
+                    continue
+                args[0] = exe_path
+                proc = subprocess.Popen(args, shell=False)
+                await asyncio.sleep(0.5)
+                if proc.poll() is not None:
+                    continue
+
             return {
                 "success": True, "method": "shell_execute",
                 "message": f"Launched {app_name}.",
             }
         except Exception as exc:
             logger.debug("Shell execute '%s' failed: %s", candidate, exc)
+            
     return {"success": False}
 
 
 async def _try_start_menu_search(app_name: str) -> dict:
     """Last resort: clipboard paste into Start Menu (avoids typewrite bug)."""
     import tkinter as tk
+    root_tk = None
     try:
         root_tk = tk.Tk()
         root_tk.withdraw()
@@ -223,7 +252,6 @@ async def _try_start_menu_search(app_name: str) -> dict:
         await asyncio.sleep(1.2)
         pyautogui.press("enter")
         await asyncio.sleep(0.5)
-        root_tk.destroy()
 
         return {
             "success": True, "method": "start_menu",
@@ -232,6 +260,12 @@ async def _try_start_menu_search(app_name: str) -> dict:
     except Exception as exc:
         logger.warning("Start Menu fallback failed: %s", exc)
         return {"success": False}
+    finally:
+        if root_tk is not None:
+            try:
+                root_tk.destroy()
+            except Exception:
+                pass
 
 
 async def _interact_with_app(launch_msg: str, input_text: str) -> str:

@@ -15,7 +15,6 @@
 
 body {
   margin: 0;
-  overflow: hidden;
   background-color: #020617;
 }
 
@@ -67,6 +66,11 @@ body {
 .compact-action-btn:hover {
   background: rgba(255,255,255,0.05);
   color: #f8fafc;
+}
+
+.compact-action-btn:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
 }
 
 .compact-status-chip {
@@ -154,6 +158,10 @@ body {
   justify-content: center;
   cursor: pointer;
   transition: background 0.2s;
+}
+
+.compact-stop-btn:hover {
+  background: #dc2626;
 }
 
 .compact-popup.alert-mode {
@@ -254,11 +262,12 @@ body {
   display: flex;
   flex-direction: column;
   padding: 0.75rem;
-  transition: width 0.3s ease, padding 0.3s ease;
-  position: relative;
-  flex-shrink: 0;
+.sidebar.collapsed {
+  width: 0;
+  padding: 0;
+  border-right: none;
+  overflow: hidden;
 }
-
 .sidebar.collapsed {
   width: 0;
   padding: 0;
@@ -290,6 +299,14 @@ body {
   border-color: #38bdf8;
 }
 
+.toggle-sidebar-btn:focus-visible {
+  color: #f8fafc;
+  background: #1e293b;
+  border-color: #38bdf8;
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+}
+
 .sidebar.collapsed .toggle-sidebar-btn {
   right: -24px; /* Move slightly out when collapsed for better grip */
 }
@@ -312,6 +329,12 @@ body {
 
 .new-chat-btn:hover {
   background: #1e293b;
+}
+
+.new-chat-btn:focus-visible {
+  background: #1e293b;
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
 }
 
 .history-list {
@@ -337,6 +360,13 @@ body {
 .history-item:hover {
   background: #0f172a;
   color: #f8fafc;
+}
+
+.history-item:focus-visible {
+  background: #0f172a;
+  color: #f8fafc;
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
 }
 
 /* App Container (Chat Area) ────────────────────────────────────────────── */
@@ -432,15 +462,19 @@ body {
   box-shadow: 0 10px 30px rgba(0,0,0,0.4);
   transition: border-color 0.2s, box-shadow 0.2s;
 }
-
-.input-container:focus-within {
-  border-color: #0ea5e9;
-  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2);
-}
-
-input {
+.input-container input {
   flex: 1;
   background: transparent;
+  border: none;
+  color: white;
+  padding: 0.75rem 1rem;
+  font-size: 0.95rem;
+  outline: none;
+}
+
+.input-container input::placeholder {
+  color: #64748b;
+}
   border: none;
   color: white;
   padding: 0.75rem 1rem;
@@ -463,16 +497,36 @@ input {
 }
 
 .btn-send:hover {
-  background: #0284c7;
-  transform: scale(1.05);
+.btn-stop {
+  background: #ef4444;
+  color: white;
+  border: none;
+  padding: 0 1rem;
+  height: 40px;
+  border-radius: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s;
 }
 
-.btn-send:disabled {
-  background: #1e293b;
-  cursor: not-allowed;
-  transform: none;
+.btn-stop:hover {
+  background: #dc2626;
 }
 
+.btn-stop:focus-visible {
+  outline: 2px solid #ef4444;
+  outline-offset: 2px;
+}
+}
+
+.btn-stop:hover {
+  background: #dc2626;
+}
+
+.btn-stop:focus-visible {
+  outline: 2px solid #ef4444;
+  outline-offset: 2px;
+}
 .btn-stop {
   background: #ef4444;
   color: white;
@@ -732,16 +786,17 @@ input {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
-}
-
-.animate-spin {
-  animation: spin 2s linear infinite;
-}
-
-/* Skills Marketplace Styles ──────────────────────────────────────────────── */
-.skills-container {
-  padding: 2rem;
+.search-bar {
   display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  padding: 0.5rem 1rem;
+  border-radius: 2rem;
+  width: 100%;
+  max-width: 300px;
+}
   flex-direction: column;
   gap: 1.5rem;
   background-color: #020617;
@@ -834,29 +889,39 @@ input {
 }
 
 .skill-content {
-  flex: 1;
-}
-
-.skill-content h3 {
-  font-size: 1rem;
-  margin: 0 0 0.5rem 0;
-}
-
-.skill-content p {
-  font-size: 0.8rem;
-  color: #94a3b8;
-  line-height: 1.5;
-  margin: 0 0 1rem 0;
-}
-
-.skill-footer {
+.skill-toggle {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 0.5rem;
+  background: #1e293b;
+  border: none;
+  color: #94a3b8;
+  padding: 0.4rem 0.8rem;
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
-.skill-cat {
-  font-size: 0.7rem;
+.skill-toggle.enabled {
+  background: #38bdf8;
+  color: #020617;
+}
+
+.skill-toggle:hover {
+  opacity: 0.8;
+}
+
+.skill-toggle:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+}
+
+.skill-toggle:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+}
   font-weight: 700;
   color: #64748b;
   background: #1e293b;

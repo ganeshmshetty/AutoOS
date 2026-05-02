@@ -74,8 +74,21 @@ function ChatView({
           <Plus size={16} /> New Chat
         </button>
         <div className="history-list">
-          {threadHistory.map((thread: any) => (
-            <div key={thread.id} className={`history-item ${threadId === thread.id ? 'active' : ''}`}>
+          {threadHistory.map((thread) => (
+            <div 
+              key={thread.id} 
+              className={`history-item ${threadId === thread.id ? 'active' : ''}`}
+              onClick={() => { /* Add handler to load thread */ }}
+              role="button"
+              tabIndex={0}
+            >
+              <MessageSquare size={14} style={{ marginRight: '8px' }} />
+              {thread.preview}
+            </div>
+          ))}
+              tabIndex={0}
+              onKeyDown={(e) => e.key === 'Enter' && setThreadId(thread.id)}
+            >
               <MessageSquare size={14} style={{ marginRight: '8px' }} />
               {thread.preview}
             </div>

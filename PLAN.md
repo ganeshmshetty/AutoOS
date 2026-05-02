@@ -479,9 +479,10 @@ START → planner → router → executor → logger → [router (next step) | E
 
 **`planner`**
 - Input: `user_input: str`, `workflow: Workflow | None`
-- Uses the **Antigravity** prompt to classify tasks as `os` or `browser`.
-- Returns a structured `TaskPlan` with plain-English steps.
-- Output: `TaskPlan` (category, sub_category, action_params, plain_english_plan)
+- Uses the **Task Planner Prompt** to classify tasks into steps of type `browser`, `desktop`, or `terminal`.
+- Returns a structured **`Workflow`** (specifically the `step_queue`) with step objects matching the canonical schema in Section 5.
+- Output: `step_queue: list[Step]` (including step types: `browser`, `desktop`, `terminal`, `hitl`, `voice_speak`, `delay`).
+- **Data Flow**: The `planner` decomposes user intent into a `step_queue`, which the **`router`** then consumes directly to orchestrate execution.
 
 **`os_executor`**
 - **Direct Model**: Bypasses LLM tool-calling to ensure zero-latency.

@@ -53,8 +53,18 @@ function DashboardView() {
         body: JSON.stringify({ target })
       });
       if (!res.ok) {
-        const errorData = await res.json();
-        alert(`Failed to kill: ${errorData.detail}`);
+        try {
+          const errorData = await res.json();
+          alert(`Failed to kill: ${errorData.detail || 'Unknown error'}`);
+        } catch {
+          alert(`Failed to kill process (HTTP ${res.status})`);
+        }
+      } else {
+          alert(`Failed to kill: ${errorData.detail || 'Unknown error'}`);
+        } catch {
+          alert(`Failed to kill process (HTTP ${res.status})`);
+        }
+      } else {
       } else {
         // Refresh immediately
         fetchData();
@@ -100,7 +110,7 @@ function DashboardView() {
             <span className="value">{data.cpu.toFixed(1)}%</span>
           </div>
           <div className="progress-bar">
-            <div className="fill" style={{ width: `${data.cpu}%`, backgroundColor: data.cpu > 80 ? '#ef4444' : '#38bdf8' }}></div>
+            <div className="fill" style={{ width: `${Math.max(0, Math.min(100, data.cpu))}%`, backgroundColor: data.cpu > 80 ? '#ef4444' : '#38bdf8' }}></div>
           </div>
         </div>
 
@@ -111,7 +121,7 @@ function DashboardView() {
             <span className="value">{data.ram.toFixed(1)}%</span>
           </div>
           <div className="progress-bar">
-            <div className="fill" style={{ width: `${data.ram}%`, backgroundColor: data.ram > 80 ? '#ef4444' : '#38bdf8' }}></div>
+            <div className="fill" style={{ width: `${Math.max(0, Math.min(100, data.ram))}%`, backgroundColor: data.ram > 80 ? '#ef4444' : '#38bdf8' }}></div>
           </div>
         </div>
 
@@ -122,7 +132,7 @@ function DashboardView() {
             <span className="value">{data.disk.toFixed(1)}%</span>
           </div>
           <div className="progress-bar">
-            <div className="fill" style={{ width: `${data.disk}%` }}></div>
+            <div className="fill" style={{ width: `${Math.max(0, Math.min(100, data.disk))}%` }}></div>
           </div>
         </div>
 
@@ -134,7 +144,7 @@ function DashboardView() {
           </div>
           <div className="progress-bar">
             <div className="fill" style={{ 
-              width: `${data.battery?.percent || 0}%`,
+              width: `${Math.max(0, Math.min(100, data.battery?.percent || 0))}%`,
               backgroundColor: data.battery?.power_plugged ? '#10b981' : (data.battery?.percent && data.battery.percent < 20 ? '#ef4444' : '#38bdf8')
             }}></div>
           </div>

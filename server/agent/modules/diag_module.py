@@ -4,7 +4,9 @@ Uses action_params.check_type from the planner.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
+import os
 import subprocess
 
 logger = logging.getLogger("AutoOS.diag_module")
@@ -25,9 +27,14 @@ async def run(task: str, entities: list[str], action_params: dict) -> str:
     return await _performance_check()
 
 
+import sys
+
 async def _explain_crashes() -> str:
+    if sys.platform != "win32":
+        return "Crash log analysis is only available on Windows."
     try:
-        result = subprocess.run(
+        result = await asyncio.to_thread(
+            subprocess.run,
             [
                 "powershell", "-Command",
                 "Get-EventLog -LogName System -EntryType Error -Newest 5 "
@@ -59,13 +66,13 @@ async def _explain_crashes() -> str:
     except Exception as exc:
         return f"Could not read system logs: {exc}"
 
-
 async def _performance_check() -> str:
     try:
         import psutil
-        cpu = psutil.cpu_percent(interval=1)
-        mem = psutil.virtual_memory()
-        disk = psutil.disk_usage("C:\\")
+        cpu = await asyncio.to_thread(psutil.cpu_percent, interval=1)
+        mem = await asyncio.to_thread(psutil.virtual_memory)
+        root_path = os.path.abspath(os.sep)
+        disk = await asyncio.to_thread(psutil.disk_usage, root_path)
 
         mem_pct = mem.percent
         disk_pct = disk.percent
@@ -94,7 +101,8 @@ async def _performance_check() -> str:
 
 async def _recycle_bin_info() -> str:
     try:
-        result = subprocess.run(
+        result = await asyncio.to_thread(
+            subprocess.run,
             [
                 "powershell", "-Command",
                 "$shell = New-Object -ComObject Shell.Application; "

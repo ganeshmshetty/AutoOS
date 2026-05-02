@@ -80,17 +80,34 @@ function App() {
   const guardianWs = useRef<WebSocket | null>(null);
   const executionIdRef = useRef<string | null>(null);
 
+  // --- Global Cleanup on Unmount ---
+  useEffect(() => {
+    return () => {
+      if (ws.current) {
+        ws.current.close();
+        ws.current = null;
+      }
+      if (guardianWs.current) {
+        guardianWs.current.close();
+        guardianWs.current = null;
+      }
+      executionIdRef.current = null;
+    };
+  }, []);
+
   // --- Initial Hydration ---
   useEffect(() => {
     const loadLatest = async () => {
       try {
         const res = await fetch('http://localhost:8765/system/threads/latest');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (data.id) {
           setThreadId(data.id);
           setMessages(data.messages || []);
         }
         const historyRes = await fetch('http://localhost:8765/system/threads');
+        if (!historyRes.ok) throw new Error(`HTTP ${historyRes.status}`);
         setThreadHistory(await historyRes.json());
       } catch (e) { console.error(e); }
     };
@@ -99,47 +116,59 @@ function App() {
 
   // --- Persistence Sync ---
   useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout>;
     if (threadId && messages.length > 0) {
-      const sync = async () => {
-        await fetch('http://localhost:8765/system/threads/save', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: threadId, messages })
-        });
-        const hRes = await fetch('http://localhost:8765/system/threads');
-        setThreadHistory(await hRes.json());
-      };
-      sync();
+      timeoutId = setTimeout(() => {
+        const sync = async () => {
+          try {
+            await fetch('http://localhost:8765/system/threads/save', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: threadId, messages })
+            });
+            const hRes = await fetch('http://localhost:8765/system/threads');
+            if (hRes.ok) {
+              setThreadHistory(await hRes.json());
+            }
+          } catch (e) {
+            console.error('Persistence sync failed:', e);
+          }
+        };
+        sync();
+      }, 1000);
     }
-  }, [messages, threadId]);
-
+    return () => { if (timeoutId) clearTimeout(timeoutId); };
+  }, [threadId, messages]);
   // --- Guardian Heartbeat ---
   useEffect(() => {
+    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+    let isMounted = true;
+    
     const connect = () => {
+      if (!isMounted) return;
       guardianWs.current = new WebSocket(`ws://localhost:8765/ws/execution/global_guardian`);
       guardianWs.current.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === 'guardian_alert') {
-          setCompactState({ isCompact: true, status: 'GUARDIAN ALERT', description: data.message, type: 'alert' });
-          window.electronAPI?.resizeWindow(480, 180);
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'guardian_alert') {
+            setCompactState({ isCompact: true, status: 'GUARDIAN ALERT', description: data.message, type: 'alert' });
+            window.electronAPI?.resizeWindow(480, 180);
+          }
+        } catch (e) {
+          console.error('Failed to parse guardian message:', e);
         }
       };
-      guardianWs.current.onclose = () => setTimeout(connect, 3000);
+      guardianWs.current.onerror = () => guardianWs.current?.close();
+      guardianWs.current.onclose = () => {
+        if (isMounted) reconnectTimeout = setTimeout(connect, 3000);
+      };
     };
     connect();
-    return () => guardianWs.current?.close();
-  }, []);
-
-  // --- Core Execution Engine (The Unified Brain) ---
-  const addMessage = useCallback((role: Message['role'], content: string, extra: Partial<Message> = {}) => {
-    setMessages(prev => [...prev, { id: Math.random().toString(36).substring(7), role, content, ...extra }]);
-  }, []);
-
-  const updateCompact = useCallback((isCompactActive: boolean, statusStr: string = '', desc: string = '') => {
-    setCompactState(prev => ({ ...prev, isCompact: isCompactActive, status: statusStr, description: desc }));
-    if (isCompactActive) window.electronAPI?.resizeWindow(480, 180);
-    else window.electronAPI?.resizeWindow(900, 700);
-  }, []);
+    return () => {
+      isMounted = false;
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+  const compactStateRef = useRef(compactState);
+  useEffect(() => { compactStateRef.current = compactState; }, [compactState]);
 
   const handleStop = async () => {
     if (ws.current?.readyState === WebSocket.OPEN) ws.current.send(JSON.stringify({ type: 'stop' }));
@@ -148,9 +177,16 @@ function App() {
     }
     setIsRunning(false);
     setStatus('idle');
-    updateCompact(compactState.isCompact, 'IDLE', 'Task cancelled.');
+    updateCompact(compactStateRef.current.isCompact, 'IDLE', 'Task cancelled.');
     addMessage('system', 'Execution stopped.');
   };
+
+  const updateCompact = useCallback((isCompactActive: boolean, statusStr: string = '', desc: string = '') => {
+    setCompactState(prev => ({ ...prev, isCompact: isCompactActive, status: statusStr, description: desc }));
+    if (isCompactActive) window.electronAPI?.resizeWindow(480, 180);
+    else window.electronAPI?.resizeWindow(900, 700);
+  }, []);
+
 
   const handleRun = async (taskStr: string) => {
     if (!taskStr.trim() || isRunning) return;
@@ -158,9 +194,24 @@ function App() {
     setIsRunning(true);
     setStatus('analyzing');
     addMessage('user', taskStr);
-    updateCompact(compactState.isCompact || false, 'ANALYZING', 'Thinking...');
+    updateCompact(compactStateRef.current.isCompact, 'ANALYZING', 'Thinking...');
 
     return new Promise<void>((resolve, reject) => {
+      let settled = false;
+      const safeReject = (err: any) => {
+        if (settled) return;
+        settled = true;
+        setIsRunning(false);
+        setStatus('idle');
+        updateCompact(compactStateRef.current.isCompact, 'ERROR', String(err));
+        reject(err);
+      };
+      const safeResolve = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+
       fetch('http://localhost:8765/executions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -170,9 +221,27 @@ function App() {
       .then(data => {
         executionIdRef.current = data.id;
         ws.current = new WebSocket(`ws://localhost:8765/ws/execution/${data.id}`);
+        
         ws.current.onopen = () => ws.current?.send(JSON.stringify({ type: 'start', task: taskStr }));
+        
+        ws.current.onerror = () => {
+           safeReject(new Error('WebSocket connection error'));
+           ws.current = null;
+        };
+        ws.current.onclose = () => {
+           safeReject(new Error('WebSocket closed unexpectedly'));
+           ws.current = null;
+        };
+
         ws.current.onmessage = (event) => {
-          const msg = JSON.parse(event.data);
+          let msg;
+          try {
+            msg = JSON.parse(event.data);
+          } catch (e) {
+            console.error("Malformed websocket message:", e);
+            return;
+          }
+
           switch (msg.type) {
             case 'classification':
               setStatus('executing');
@@ -185,24 +254,19 @@ function App() {
               addMessage('agent', msg.summary);
               setIsRunning(false);
               setStatus('idle');
-              updateCompact(compactState.isCompact, '', msg.summary);
-              resolve();
+              updateCompact(compactStateRef.current.isCompact, '', msg.summary);
+              safeResolve();
               break;
             case 'step_error':
               addMessage('system', `Error: ${msg.error}`);
-              setIsRunning(false);
-              setStatus('idle');
-              updateCompact(compactState.isCompact, 'ERROR', msg.error);
-              reject(msg.error);
+              safeReject(msg.error);
               break;
           }
         };
       })
       .catch(e => {
-        setIsRunning(false);
-        setStatus('idle');
         addMessage('system', 'Failed to connect to backend.');
-        reject(e);
+        safeReject(e);
       });
     });
   };

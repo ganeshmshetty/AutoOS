@@ -1,40 +1,73 @@
+"""
+memory.py — Final node in the AutoOS agent graph.
+
+Consolidates results, emits the final 'complete' event to the frontend,
+and persists execution context to the local memory files.
+"""
 import os
 from datetime import datetime
 from agent.state import AgentState
+from agent.bus import emit_event
+from langchain_core.runnables import RunnableConfig
 
 MEMORY_FILE = "server/knowledge/MEMORY.md"
 HABITS_FILE = "server/knowledge/HABITS.md"
 
-def memory_consolidator(state: AgentState):
+
+async def memory_consolidator(state: AgentState, config: RunnableConfig):
     """
-    Reflects on the completed task and updates the local Markdown memory/habits.
+    Final node: consolidates multi-step results and emits 'complete'.
     """
     task = state.get("task", "")
+    step_results = state.get("step_results", [])
     result = state.get("result", "")
-    category = state.get("category", "unknown")
-    
-    # 1. Update Recent Tasks in MEMORY.md
-    if os.path.exists(MEMORY_FILE):
-        with open(MEMORY_FILE, "r") as f:
-            content = f.read()
-        
-        # Simple appending to 'Recent Tasks' section
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-        new_entry = f"\n- [{timestamp}] {task} -> {result[:50]}..."
-        
-        if "## Recent Tasks" in content:
-            updated_content = content.replace("## Recent Tasks", f"## Recent Tasks{new_entry}")
-            with open(MEMORY_FILE, "w") as f:
-                f.write(updated_content)
+    steps_taken = state.get("steps_taken", 0)
 
-    # 2. Pattern recognition for HABITS.md
+    # Build a combined summary from all steps
+    if len(step_results) > 1:
+        summary_lines = [f"Completed in {steps_taken} steps:"]
+        for i, r in enumerate(step_results):
+            summary_lines.append(f"  {i+1}. {r}")
+        final_summary = "\n".join(summary_lines)
+    else:
+        final_summary = result or (step_results[0] if step_results else "Task completed.")
+
+    # Emit the final 'complete' event to the frontend
+    await emit_event(config, {"type": "complete", "summary": final_summary})
+
+    # ── Persist to local memory files ─────────────────────────────────────
+    category = state.get("sub_category", "unknown")
+
+    if os.path.exists(MEMORY_FILE):
+        try:
+            with open(MEMORY_FILE, "r") as f:
+                content = f.read()
+
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+            short_result = final_summary[:80].replace("\n", " ")
+            new_entry = f"\n- [{timestamp}] {task} -> {short_result}..."
+
+            if "## Recent Tasks" in content:
+                updated = content.replace("## Recent Tasks", f"## Recent Tasks{new_entry}")
+                with open(MEMORY_FILE, "w") as f:
+                    f.write(updated)
+        except Exception:
+            pass  # Non-critical
+
     if os.path.exists(HABITS_FILE):
-        # Basic logic: If a keyword appears frequently, note it
         keywords = ["whatsapp", "calc", "browser", "downloads"]
         found = [k for k in keywords if k in task.lower()]
-        
         if found:
-            with open(HABITS_FILE, "a") as f:
-                f.write(f"\n- Observed usage of {', '.join(found)} at {datetime.now()}")
+            try:
+                with open(HABITS_FILE, "a") as f:
+                    f.write(f"\n- Observed usage of {', '.join(found)} at {datetime.now()}")
+            except Exception:
+                pass
 
-    return state
+    return {
+        "result": final_summary,
+        "messages": [{
+            "role": "assistant",
+            "content": final_summary,
+        }],
+    }

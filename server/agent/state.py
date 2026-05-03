@@ -2,6 +2,11 @@ from typing import Annotated, TypedDict, List, Optional
 from langgraph.graph.message import add_messages
 
 
+def _add_step_results(old: List[str], new: List[str]) -> List[str]:
+    """Accumulate step results across loop iterations."""
+    return (old or []) + (new or [])
+
+
 class AgentState(TypedDict):
     # ── Core conversation ────────────────────────────────────────────────────
     messages: Annotated[List[dict], add_messages]
@@ -27,6 +32,14 @@ class AgentState(TypedDict):
     headless: Optional[bool]
     input_values: Optional[dict]
     max_steps: Optional[int]
+
+    # ── Multi-step loop tracking ─────────────────────────────────────────────
+    # Number of planner→executor iterations completed
+    steps_taken: int
+    # Result from each step — accumulated across loop iterations
+    step_results: Annotated[List[str], _add_step_results]
+    # Remaining subtask for the next loop (set by evaluator)
+    remaining_task: str
 
     # ── Final result ─────────────────────────────────────────────────────────
     result: str

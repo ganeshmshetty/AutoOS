@@ -51,7 +51,6 @@ async def browser_executor(state: AgentState, config: RunnableConfig) -> dict[st
         result = f"Browser task failed: {str(e)}"
 
     await emit_event(config, {"type": "step_done", "description": "Completed browser task"})
-    await emit_event(config, {"type": "complete", "summary": result})
 
     # Detect current platform for context persistence
     new_ctx = {}
@@ -64,6 +63,7 @@ async def browser_executor(state: AgentState, config: RunnableConfig) -> dict[st
 
     return {
         "result": result,
+        "step_results": [result],
         "messages": [{"role": "assistant", "content": f"Browser Task Result: {result}"}],
         "context": new_ctx
     }
@@ -131,7 +131,6 @@ async def os_executor(state: AgentState, config: RunnableConfig) -> dict[str, An
         result = f"Something went wrong: {str(e)}"
 
     await emit_event(config, {"type": "step_done", "description": f"Done! {result}"})
-    await emit_event(config, {"type": "complete", "summary": result})
 
     # Build context updates from entities for chaining
     new_ctx = {}
@@ -142,6 +141,7 @@ async def os_executor(state: AgentState, config: RunnableConfig) -> dict[str, An
 
     return {
         "result": result,
+        "step_results": [result],
         "messages": [{"role": "assistant", "content": result}],
         "context": new_ctx,
     }
@@ -178,10 +178,10 @@ async def reasoning_executor(state: AgentState, config: RunnableConfig) -> dict[
         result = f"Reasoning failed: {str(e)}"
 
     await emit_event(config, {"type": "step_done", "description": "Finished thinking."})
-    await emit_event(config, {"type": "complete", "summary": result})
 
     return {
         "result": result,
+        "step_results": [result],
         "messages": [{"role": "assistant", "content": result}]
     }
 

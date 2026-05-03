@@ -155,9 +155,20 @@ STRICT RULES
 async def planner(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     """
     Classifies the user task into a rich TaskPlan and stores it in AgentState.
+
+    Multi-step loop support:
+      - On the first iteration, classifies the original `task`.
+      - On subsequent iterations, classifies `remaining_task` set by the evaluator.
+      - Increments `steps_taken` on each pass.
     """
-    task = state.get("task", "").strip()
-    if not task:
+    steps_taken = state.get("steps_taken", 0)
+
+    # On loop iterations, the evaluator sets remaining_task for us
+    remaining = state.get("remaining_task", "")
+    original_task = state.get("task", "").strip()
+    current_task = remaining if (remaining and steps_taken > 0) else original_task
+
+    if not current_task:
         return {
             "next_action": "end",
             "sub_category": "unknown",
@@ -167,6 +178,7 @@ async def planner(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
             "confidence": 1.0,
             "needs_hitl": False,
             "result": "No task provided.",
+            "steps_taken": steps_taken,
         }
 
     llm = get_llm(temperature=0.0)
@@ -175,9 +187,21 @@ async def planner(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     # Inject persistent context for chaining
     ctx = state.get("context", {})
     ctx_str = f"\n\nCURRENT CONTEXT: {ctx}" if ctx else ""
-    prompt = f'{_SYSTEM_PROMPT}{ctx_str}\n\nUser request: "{task}"'
 
-    logger.info("Classifying task: %s", task)
+    # On loop iterations, provide the history of what's already been done
+    step_results = state.get("step_results", [])
+    history_str = ""
+    if step_results:
+        history_lines = [f"  Step {i+1}: {r}" for i, r in enumerate(step_results)]
+        history_str = (
+            f"\n\nSTEPS ALREADY COMPLETED:\n"
+            + "\n".join(history_lines)
+            + f"\n\nNow classify ONLY the REMAINING task below."
+        )
+
+    prompt = f'{_SYSTEM_PROMPT}{ctx_str}{history_str}\n\nUser request: "{current_task}"'
+
+    logger.info("Classifying task (step %d): %s", steps_taken + 1, current_task)
     plan: TaskPlan = await invoke_with_fallback(structured_llm, prompt)
     logger.info(
         "Plan → category=%s sub=%s params=%s hitl=%s",
@@ -191,6 +215,7 @@ async def planner(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
         "plain_english_plan": plan.plain_english_plan,
         "confidence": plan.confidence,
         "needs_hitl": plan.needs_hitl,
+        "step": steps_taken + 1,
     })
 
     return {
@@ -201,11 +226,13 @@ async def planner(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
         "plain_english_plan": plan.plain_english_plan,
         "confidence": plan.confidence,
         "needs_hitl": plan.needs_hitl,
+        "steps_taken": steps_taken + 1,
         "messages": [{
             "role": "assistant",
             "content": (
-                f"[Planner] {plan.category}/{plan.sub_category} — "
+                f"[Step {steps_taken + 1}] {plan.category}/{plan.sub_category} — "
                 f"{plan.plain_english_plan}"
             ),
         }],
     }
+

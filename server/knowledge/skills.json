@@ -1,0 +1,26 @@
+[
+  {
+    "id": "whatsapp",
+    "enabled": true
+  },
+  {
+    "id": "browser",
+    "enabled": true
+  },
+  {
+    "id": "file_master",
+    "enabled": true
+  },
+  {
+    "id": "spotify",
+    "enabled": false
+  },
+  {
+    "id": "guardian",
+    "enabled": true
+  },
+  {
+    "id": "security",
+    "enabled": true
+  }
+]

@@ -55,15 +55,16 @@ async def run(task: str, entities: list[str], action_params: dict) -> str:
     # Special handling for app interaction (e.g. calculation)
     action: str = action_params.get("action", "").lower()
     input_text: str = action_params.get("input", "")
+    target: str = action_params.get("target", "")
 
     for strategy in strategies:
         result = await strategy()
         if result["success"]:
             logger.info("Launch succeeded via %s", result.get("method", "unknown"))
             
-            if action == "interact" or input_text:
-                await asyncio.sleep(1.5) # Wait for app to focus
-                return await _interact_with_app(result["message"], input_text)
+            if action == "interact" or input_text or action == "send_message" or "whatsapp" in app_name.lower():
+                await asyncio.sleep(2.0) # Wait for app to focus
+                return await _interact_with_app(result["message"], input_text, app_name, entities, action, target)
             
             return result["message"]
 
@@ -239,8 +240,33 @@ async def _try_start_menu_search(app_name: str) -> dict:
         return {"success": False}
 
 
-async def _interact_with_app(launch_msg: str, input_text: str) -> str:
+async def _interact_with_app(launch_msg: str, input_text: str, app_name: str = "", entities: list[str] = None, action: str = "", target: str = "") -> str:
     """Type text into the active window."""
+    entities = entities or []
+    
+    if "whatsapp" in app_name.lower() and input_text:
+        try:
+            # If explicit target was not provided, fallback to entities
+            if not target:
+                target = entities[1] if len(entities) > 1 else (entities[0] if entities else "")
+                if target.lower() == "whatsapp":
+                    target = entities[1] if len(entities) > 1 else ""
+                
+            pyautogui.hotkey("ctrl", "f") # Open search in WhatsApp
+            await asyncio.sleep(0.5)
+            if target:
+                pyautogui.write(target, interval=0.05)
+                await asyncio.sleep(1.0)
+                pyautogui.press("enter")
+                await asyncio.sleep(0.5)
+                
+            pyautogui.write(input_text, interval=0.05)
+            pyautogui.press("enter")
+            return f"{launch_msg} Found chat '{target}' and sent: '{input_text}'"
+        except Exception as exc:
+            logger.warning("WhatsApp interaction failed: %s", exc)
+            return f"{launch_msg} (Interaction failed: {exc})"
+
     if not input_text:
         return launch_msg
 

@@ -38,6 +38,10 @@ async def run(task: str, entities: list[str], action_params: dict) -> str:
         return await _set_power_mode(mode)
     if setting in ("night_light", "night light", "blue light"):
         return await _toggle_night_light()
+    if setting in ("bluetooth", "bluetooth_devices", "wifi", "network"):
+        from agent.modules import hardware_module
+        action_params["device_type"] = setting
+        return await hardware_module.run(task, entities, action_params)
 
     # Fallback to keyword scan
     if any(w in task_lower for w in ("font", "text", "bigger", "larger", "size", "small", "zoom")):
@@ -60,6 +64,9 @@ async def run(task: str, entities: list[str], action_params: dict) -> str:
         return await _set_power_mode(task_lower)
     if any(w in task_lower for w in ("night light", "blue light", "warmth")):
         return await _toggle_night_light()
+    if "bluetooth" in task_lower or "wifi" in task_lower or "network" in task_lower:
+        from agent.modules import hardware_module
+        return await hardware_module.run(task, entities, action_params)
 
     return await _open_settings_generic()
 

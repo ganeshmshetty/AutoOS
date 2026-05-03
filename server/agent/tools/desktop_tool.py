@@ -5,6 +5,7 @@ Routes to the correct module based on sub_category.
 from __future__ import annotations
 
 import logging
+from agent.skills import is_skill_enabled
 
 logger = logging.getLogger("AutoOS.desktop")
 
@@ -21,6 +22,12 @@ async def run_os_task(
         "OS dispatch: sub=%s entities=%s params=%s",
         sub_category, entities, action_params
     )
+
+    if sub_category == "file_ops" and not is_skill_enabled("file_master", False):
+        return "The 'File Master' skill is currently disabled. Please enable it in the Skills Marketplace."
+
+    if "spotify" in task.lower() and not is_skill_enabled("spotify", False):
+        return "The 'Spotify Control' skill is currently disabled. Please enable it in the Skills Marketplace."
 
     match sub_category:
         case "app_launch":

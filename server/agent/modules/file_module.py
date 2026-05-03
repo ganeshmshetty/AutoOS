@@ -43,14 +43,46 @@ _TIME_HINTS = {
 
 
 async def run(task: str, entities: list[str], action_params: dict) -> str:
+    task_lower = task.lower()
     keywords: list[str] = action_params.get("keywords") or entities or []
     file_types: list[str] = action_params.get("file_types") or []
     time_hint: str = action_params.get("time_hint", "any")
-    action: str = action_params.get("action", "search")
     folder: str | None = action_params.get("folder")
 
     # Determine the requested action (default is search)
     action: str = action_params.get("action", "search")
+    
+    if action == "create_folder" or (any(w in task_lower for w in ("create", "make", "new")) and "folder" in task_lower):
+        target_name = (entities or keywords)[0] if (entities or keywords) else "New Folder"
+        od_desktop = Path.home() / "OneDrive" / "Desktop"
+        dest_root = od_desktop if od_desktop.exists() else Path.home() / "Desktop"
+        if "document" in task_lower:
+            od_docs = Path.home() / "OneDrive" / "Documents"
+            dest_root = od_docs if od_docs.exists() else Path.home() / "Documents"
+        elif "download" in task.lower(): dest_root = Path.home() / "Downloads"
+        
+        new_dir = dest_root / target_name
+        try:
+            new_dir.mkdir(parents=True, exist_ok=True)
+            os.startfile(str(dest_root))
+            return f"Successfully created a new folder named '{target_name}' at {dest_root}."
+        except Exception as e:
+            return f"Failed to create folder: {e}"
+
+    if action == "create_file" or (any(w in task_lower for w in ("create", "make", "new")) and "file" in task_lower):
+        target_name = (entities or keywords)[0] if (entities or keywords) else "new_file.txt"
+        dest_root = Path.home() / "Desktop"
+        if "document" in task.lower(): dest_root = Path.home() / "Documents"
+        elif "download" in task.lower(): dest_root = Path.home() / "Downloads"
+        
+        new_file = dest_root / target_name
+        try:
+            new_file.touch(exist_ok=True)
+            os.startfile(str(dest_root))
+            return f"Successfully created a new file named '{target_name}' at {dest_root}."
+        except Exception as e:
+            return f"Failed to create file: {e}"
+
     if action == "open":
         # Resolve file name from entities or keywords
         target_name = (entities or keywords)[0] if (entities or keywords) else None

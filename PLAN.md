@@ -41,18 +41,18 @@
 
 ## 2. Feature List
 
-| # | Feature | Priority | Owner |
-|---|---------|----------|-------|
-| 1 | Browser control via `browser-use` | P0 | Person 1 |
-| 2 | Desktop control via PyAutoGUI + Agent-S | P0 | Person 1 |
-| 3 | Terminal execution | P0 | Person 1 |
-| 4 | **Workflow saving, running, and sharing** | P0 — main theme | Person 2 + 4 |
-| 5 | **Voice input + output** | P0 | Person 1 + 3 |
-| 6 | Human-in-the-loop (HITL) approval dialogs | P0 | Person 1 + 3 |
-| 7 | Browser extension workflow recorder | P1 | Person 4 |
-| 8 | JSON export / import | P0 | Person 4 |
-| 9 | Link-based workflow sharing | P1 | Person 4 |
-| 10 | Reusable workflow inputs (variables) | P1 | Person 2 |
+| #   | Feature                                   | Priority        | Owner        |
+| --- | ----------------------------------------- | --------------- | ------------ |
+| 1   | Browser control via `browser-use`         | P0              | Person 1     |
+| 2   | Desktop control via PyAutoGUI + Agent-S   | P0              | Person 1     |
+| 3   | Terminal execution                        | P0              | Person 1     |
+| 4   | **Workflow saving, running, and sharing** | P0 — main theme | Person 2 + 4 |
+| 5   | **Voice input + output**                  | P0              | Person 1 + 3 |
+| 6   | Human-in-the-loop (HITL) approval dialogs | P0              | Person 1 + 3 |
+| 7   | Browser extension workflow recorder       | P1              | Person 4     |
+| 8   | JSON export / import                      | P0              | Person 4     |
+| 9   | Link-based workflow sharing               | P1              | Person 4     |
+| 10  | Reusable workflow inputs (variables)      | P1              | Person 2     |
 
 ---
 
@@ -76,10 +76,10 @@ User presses mic button
 
 **Implementation decision — two options, pick one early:**
 
-| Option | Library | Runs where | Accuracy | Requires internet |
-|--------|---------|-----------|----------|-------------------|
-| A — Web Speech API | Browser built-in | Electron renderer | Medium | Yes (Chrome sends to Google) |
-| B — Whisper (local) | `openai-whisper` Python | FastAPI backend | High | No |
+| Option              | Library                 | Runs where        | Accuracy | Requires internet            |
+| ------------------- | ----------------------- | ----------------- | -------- | ---------------------------- |
+| A — Web Speech API  | Browser built-in        | Electron renderer | Medium   | Yes (Chrome sends to Google) |
+| B — Whisper (local) | `openai-whisper` Python | FastAPI backend   | High     | No                           |
 
 **Recommended: Option B (Whisper).** Fits the local-first philosophy. Use the `base` model for speed on consumer hardware. The Electron frontend records audio and sends a WAV blob to `POST /voice/transcribe`. FastAPI runs Whisper and returns the text.
 
@@ -143,17 +143,18 @@ function speak(text: string, priority: "high" | "normal") {
 
 **User settings for voice (in Settings panel):**
 
-| Setting | Default | Options |
-|---------|---------|---------|
-| Voice input method | Whisper (local) | Whisper / Browser |
-| Voice output enabled | On | On / Off |
-| Speech rate | 1.0 | 0.8 / 1.0 / 1.2 / 1.4 |
-| Speak HITL prompts | On | On / Off |
-| Speak step summaries | On | On / Off |
+| Setting              | Default         | Options               |
+| -------------------- | --------------- | --------------------- |
+| Voice input method   | Whisper (local) | Whisper / Browser     |
+| Voice output enabled | On              | On / Off              |
+| Speech rate          | 1.0             | 0.8 / 1.0 / 1.2 / 1.4 |
+| Speak HITL prompts   | On              | On / Off              |
+| Speak step summaries | On              | On / Off              |
 
 ### 3.3 Voice + HITL Integration
 
 When the agent hits a HITL pause and voice output is enabled, the tool does three things simultaneously:
+
 1. Speaks the prompt aloud
 2. Shows the HITL dialog on screen
 3. Optionally activates the microphone for a voice response
@@ -194,19 +195,19 @@ Response: { "text": "Book me a flight to Mumbai" }
 
 ### Full list with rationale
 
-| Layer | Technology | Why |
-|-------|-----------|-----|
-| Desktop shell | Electron + React (Vite) | Cross-platform (Mac + Windows), native file system access, standard installer, no CLI for users |
-| Backend | FastAPI (Python) | Async, fast, great WebSocket support; Python is home for all automation libs |
-| Agent | LangGraph | Stateful graph, native HITL pause/resume, checkpoint/replay built in |
-| Browser automation | `browser-use` (Playwright) | High-level browser agent API over Playwright |
-| Desktop automation | PyAutoGUI + Agent-S | PyAutoGUI for simple actions, Agent-S for complex multi-step desktop tasks |
-| Terminal execution | `subprocess` + `pty` (Python) | PTY gives interactive terminal support (sudo prompts, etc.) |
-| Voice input | OpenAI Whisper (local) | Offline, accurate, no API key needed |
-| Voice output | Web Speech API — SpeechSynthesis | Built into Electron's Chromium, no dependency |
-| Local storage | SQLite via SQLModel | Zero-config, embedded, Pydantic models double as API validators |
-| Sharing relay | Supabase free tier | One-table hosted DB for storing workflow JSON blobs behind short links |
-| Packaging | electron-builder | Mac `.dmg` + Windows `.exe` installer, auto-update support |
+| Layer              | Technology                       | Why                                                                                             |
+| ------------------ | -------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Desktop shell      | Electron + React (Vite)          | Cross-platform (Mac + Windows), native file system access, standard installer, no CLI for users |
+| Backend            | FastAPI (Python)                 | Async, fast, great WebSocket support; Python is home for all automation libs                    |
+| Agent              | LangGraph                        | Stateful graph, native HITL pause/resume, checkpoint/replay built in                            |
+| Browser automation | `browser-use` (Playwright)       | High-level browser agent API over Playwright                                                    |
+| Desktop automation | PyAutoGUI + Agent-S              | PyAutoGUI for simple actions, Agent-S for complex multi-step desktop tasks                      |
+| Terminal execution | `subprocess` + `pty` (Python)    | PTY gives interactive terminal support (sudo prompts, etc.)                                     |
+| Voice input        | OpenAI Whisper (local)           | Offline, accurate, no API key needed                                                            |
+| Voice output       | Web Speech API — SpeechSynthesis | Built into Electron's Chromium, no dependency                                                   |
+| Local storage      | SQLite via SQLModel              | Zero-config, embedded, Pydantic models double as API validators                                 |
+| Sharing relay      | Supabase free tier               | One-table hosted DB for storing workflow JSON blobs behind short links                          |
+| Packaging          | electron-builder                 | Mac `.dmg` + Windows `.exe` installer, auto-update support                                      |
 
 ### What we are NOT using and why
 
@@ -292,14 +293,14 @@ Response: { "text": "Book me a flight to Mumbai" }
 
 ### Step `type` values
 
-| type | Handled by | Description |
-|------|-----------|-------------|
-| `browser` | browser-use / Playwright | Any web browser action |
-| `desktop` | PyAutoGUI / Agent-S | Keyboard, mouse, screen actions |
-| `terminal` | subprocess / pty | Shell commands |
-| `hitl` | LangGraph interrupt + WS | Pause and ask the human |
-| `voice_speak` | Voice output system | Speak a message without pausing |
-| `delay` | Agent | Wait N seconds |
+| type          | Handled by               | Description                     |
+| ------------- | ------------------------ | ------------------------------- |
+| `browser`     | browser-use / Playwright | Any web browser action          |
+| `desktop`     | PyAutoGUI / Agent-S      | Keyboard, mouse, screen actions |
+| `terminal`    | subprocess / pty         | Shell commands                  |
+| `hitl`        | LangGraph interrupt + WS | Pause and ask the human         |
+| `voice_speak` | Voice output system      | Speak a message without pausing |
+| `delay`       | Agent                    | Wait N seconds                  |
 
 ### `{{variable}}` interpolation
 
@@ -308,6 +309,7 @@ Any `param` value or `command` string may include `{{input_name}}` tokens. They 
 ### Extension Telemetry Mapping
 
 The Chrome extension records raw user interactions. Person 4 will map these flat telemetry events into the canonical step array:
+
 - `event: 'click'` → `type: 'browser', action: 'click', params: { selector: xpath }`
 - `event: 'input'` → `type: 'browser', action: 'fill', params: { selector: xpath, value: ... }`
 - Consecutive identical actions are combined directly via the extension's onboard noise reducer.
@@ -478,30 +480,35 @@ START → planner → router → executor → logger → [router (next step) | E
 ### Node responsibilities
 
 **`planner`**
+
 - Input: `user_input: str`, `workflow: Workflow | None`
 - Uses the **Antigravity** prompt to classify tasks as `os` or `browser`.
 - Returns a structured `TaskPlan` with plain-English steps.
 - Output: `TaskPlan` (category, sub_category, action_params, plain_english_plan)
 
 **`os_executor`**
+
 - **Direct Model**: Bypasses LLM tool-calling to ensure zero-latency.
 - Uses a **Smart Task Parser** (Regex/Keyword) to match intents directly to OS tools.
 - Executes: `launch_app`, `open_folder`, `compute_in_calculator`, `check_disk_space`, `get_battery_status`, `check_wifi`, `open_settings`.
 - Emits real-time status updates and final textual results.
 
 **`router`**
+
 - Input: `step_queue`
 - Pops the next step
 - Routes to executor (browser/desktop/terminal) or hitl_gate (hitl/voice_speak)
 - Output: `current_step: Step`, `remaining_steps: list[Step]`
 
 **`executor`**
+
 - Input: `current_step`
 - Calls the appropriate tool wrapper (browser_tool / desktop_tool / terminal_tool)
 - Emits `step_start` and `step_done` / `step_error` WS events
 - Output: `step_result: str`
 
 **`hitl_gate`**
+
 - Input: `current_step` (type = `hitl`)
 - Emits `hitl_request` WS event (including `voice_prompt` field for voice output)
 - Calls `graph.interrupt()` — LangGraph pauses the graph here
@@ -509,6 +516,7 @@ START → planner → router → executor → logger → [router (next step) | E
 - Output: `hitl_response: str`
 
 **`logger`**
+
 - Input: all state
 - Writes current step + result to `execution_logs` SQLite table
 - Emits `speech` WS event with a short summary (used by voice output)
@@ -523,6 +531,7 @@ Every file in the repo should have a clear owner. When you need to touch someone
 ### Person 1 — Agent core + voice backend
 
 **Owns:**
+
 - `server/agent/` — entire LangGraph graph, all nodes, all tool wrappers
 - `server/voice/` — Whisper transcription, speech event emitter
 - Voice input backend (`POST /voice/transcribe` implementation)
@@ -535,6 +544,7 @@ Every file in the repo should have a clear owner. When you need to touch someone
 ### Person 2 — Backend + API
 
 **Owns:**
+
 - `server/routers/` — all HTTP and WebSocket endpoints
 - `server/models/` — SQLModel schemas, migrations
 - `server/db.py` — database engine and session management
@@ -549,6 +559,7 @@ Every file in the repo should have a clear owner. When you need to touch someone
 ### Person 3 — Frontend (Electron + React)
 
 **Owns:**
+
 - `app/` — entire Electron + React app
 - Workflow library home screen
 - Run view with real-time step progress
@@ -566,6 +577,7 @@ Every file in the repo should have a clear owner. When you need to touch someone
 ### Person 4 — Schema + sharing + DevOps
 
 **Owns:**
+
 - `shared/workflow_schema.json` — canonical JSON Schema, Pydantic validators
 - `shared/types.ts` — TypeScript types
 - `server/routers/sharing.py` — export/import/link endpoints
@@ -686,7 +698,7 @@ Copy `.env.example` to `.env` in the `server/` directory:
 AUTOFLOW_PORT=8765
 LLM_PROVIDER=gemini             # Use Gemini (no ChatGPT)
 LLM_API_KEYS=key1,key2,key3     # Comma-separated list of 3-5 Gemini api keys for rate limit rotation
-LLM_MODEL=gemini-1.5-pro        # Gemini model 
+LLM_MODEL=gemini-1.5-pro        # Gemini model
 WHISPER_MODEL=base              # base | small | medium
 SHARING_RELAY_URL=https://...   # Supabase relay endpoint
 SHARING_RELAY_KEY=...           # Supabase anon key
@@ -728,11 +740,11 @@ docs/person-4/update-schema
 
 ### Suggested weekly rhythm
 
-| Day | Activity |
-|-----|----------|
-| Monday | Sync meeting — share blockers, align on that week's goals |
-| Wednesday | Optional mid-week check-in (async in chat is fine) |
-| Friday | PR reviews done. Merge what's ready. Update this doc if anything changed. |
+| Day       | Activity                                                                  |
+| --------- | ------------------------------------------------------------------------- |
+| Monday    | Sync meeting — share blockers, align on that week's goals                 |
+| Wednesday | Optional mid-week check-in (async in chat is fine)                        |
+| Friday    | PR reviews done. Merge what's ready. Update this doc if anything changed. |
 
 ---
 
@@ -759,15 +771,15 @@ These apply to every screen Person 3 builds and every error message Person 2 wri
 
 Track these here until resolved. Assign a person and a resolution date.
 
-| # | Question | Owner | Due |
-|---|---------|-------|-----|
-| 1 | Which Whisper model for MVP — `base` or `small`? `base` is faster but `small` is more accurate for accented English. | Person 1 | Week 1 |
-| 2 | Browser extension output format — what JSON does it currently produce? Person 4 needs this to map it to our schema. | Person 4 | Week 1 |
-| 3 | Sharing relay — do we self-host a tiny FastAPI on a VPS, or use Supabase? Decision affects Person 4's work. | Person 4 | Week 1 |
-| 4 | Gemini API Key Rotation — Implement robust round-robin or rate-limit-aware rotation for the 3-5 Gemini API keys to avoid hitting usage limits. | Person 1 + 2 | Phase 1 |
-| 5 | Voice HITL response — should users be able to speak their HITL answer, or text only for now? | Person 1 + 3 | Week 2 |
-| 6 | Agent-S licensing and Python version compatibility — verify before using in production. | Person 1 | Week 1 |
+| #   | Question                                                                                                                                       | Owner        | Due     |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | ------- |
+| 1   | Which Whisper model for MVP — `base` or `small`? `base` is faster but `small` is more accurate for accented English.                           | Person 1     | Week 1  |
+| 2   | Browser extension output format — what JSON does it currently produce? Person 4 needs this to map it to our schema.                            | Person 4     | Week 1  |
+| 3   | Sharing relay — do we self-host a tiny FastAPI on a VPS, or use Supabase? Decision affects Person 4's work.                                    | Person 4     | Week 1  |
+| 4   | Gemini API Key Rotation — Implement robust round-robin or rate-limit-aware rotation for the 3-5 Gemini API keys to avoid hitting usage limits. | Person 1 + 2 | Phase 1 |
+| 5   | Voice HITL response — should users be able to speak their HITL answer, or text only for now?                                                   | Person 1 + 3 | Week 2  |
+| 6   | Agent-S licensing and Python version compatibility — verify before using in production.                                                        | Person 1     | Week 1  |
 
 ---
 
-*AutoFlow Team Context v1.0 — update this document when decisions change. Last edited by: [your name] on [date].*
+_AutoFlow Team Context v1.0 — update this document when decisions change. Last edited by: [your name] on [date]._

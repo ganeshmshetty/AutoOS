@@ -100,6 +100,16 @@ function WorkflowsView({ handleRun, isRunning, faceRegistered, setFaceAuthAction
     }
   };
 
+  const deleteWorkflow = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this workflow?")) return;
+    try {
+      await fetch(`http://localhost:8765/system/workflows/${id}`, { method: 'DELETE' });
+      fetchWorkflows();
+    } catch (e) {
+      console.error('Failed to delete workflow', e);
+    }
+  };
+
   const exportWorkflow = (wf: Workflow) => {
     const dataStr = JSON.stringify(wf, null, 2);
     const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
@@ -214,6 +224,9 @@ function WorkflowsView({ handleRun, isRunning, faceRegistered, setFaceAuthAction
                  <h3>{wf.name}</h3>
                  <button className="export-mini-btn" title="Export Workflow" onClick={() => exportWorkflow(wf)}>
                     <Download size={14} />
+                 </button>
+                 <button className="export-mini-btn" title="Delete Workflow" onClick={() => deleteWorkflow(wf.id)} style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
+                    <Trash2 size={14} />
                  </button>
               </div>
               <p>{wf.description}</p>

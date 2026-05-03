@@ -18,7 +18,7 @@ async def run(task: str, entities: list[str], action_params: dict) -> str:
     if device_type in ("usb", "pendrive", "flash_drive", "storage"):
         return await _check_usb()
     if device_type in ("wifi", "wi-fi", "network", "internet"):
-        if any(w in task.lower() for w in ("available", "nearby", "list", "scan", "show")):
+        if any(w in task.lower() for w in ("available", "nearby", "list", "scan", "show", "same")):
             return await _get_available_wifi_networks()
         if any(w in task.lower() for w in ("toggle", "turn", "on", "off", "switch", "open", "settings")):
             return await _open_wifi_settings()
@@ -37,7 +37,7 @@ async def run(task: str, entities: list[str], action_params: dict) -> str:
     if any(w in task_lower for w in ("usb", "pendrive", "pen drive", "flash drive")):
         return await _check_usb()
     if any(w in task_lower for w in ("wifi", "wi-fi", "internet", "network")):
-        if any(w in task_lower for w in ("available", "nearby", "list", "scan", "show")):
+        if any(w in task_lower for w in ("available", "nearby", "list", "scan", "show", "same")):
             return await _get_available_wifi_networks()
         if any(w in task_lower for w in ("toggle", "turn", "on", "off", "switch", "open", "settings")):
             return await _open_wifi_settings()

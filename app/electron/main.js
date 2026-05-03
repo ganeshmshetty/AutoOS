@@ -9,7 +9,7 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 900, // Widened to accommodate sidebar
     height: 700,
-    alwaysOnTop: true,
+    alwaysOnTop: false,
     autoHideMenuBar: true, // Remove the "ugly" menu bar
     title: "AutoOS Assistant",
     webPreferences: {
@@ -22,6 +22,12 @@ function createWindow() {
   ipcMain.on('resize-window', (event, { width, height }) => {
     win.setSize(width, height, true);
     win.setResizable(width >= 900);
+    // Dynamically toggle always-on-top based on window size
+    if (width < 900) {
+      win.setAlwaysOnTop(true, 'floating'); // Keep popup on top
+    } else {
+      win.setAlwaysOnTop(false); // Normal window behavior
+    }
   });
 
   // In development, load from Vite dev server

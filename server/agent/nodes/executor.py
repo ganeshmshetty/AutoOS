@@ -19,6 +19,7 @@ from agent.state import AgentState
 from agent.tools.browser_tool import run_browser_task
 from agent.tools.desktop_tool import run_os_task
 from agent.bus import emit_event
+from agent.skills import is_skill_enabled
 
 logger = logging.getLogger("AutoOS.executor")
 
@@ -29,6 +30,22 @@ logger = logging.getLogger("AutoOS.executor")
 
 async def browser_executor(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     task = state.get("task", "")
+
+    # Check Skills Toggle
+    if "whatsapp" in task.lower() and not is_skill_enabled("whatsapp", True):
+        msg = "The WhatsApp Pro skill is currently disabled. Please enable it in the Skills Marketplace."
+        await emit_event(config, {"type": "step_done", "description": msg})
+        return {"result": msg, "step_results": [msg], "messages": [{"role": "assistant", "content": msg}]}
+    
+    if "spotify" in task.lower() and not is_skill_enabled("spotify", False):
+        msg = "The Spotify Control skill is currently disabled. Please enable it in the Skills Marketplace."
+        await emit_event(config, {"type": "step_done", "description": msg})
+        return {"result": msg, "step_results": [msg], "messages": [{"role": "assistant", "content": msg}]}
+
+    if "whatsapp" not in task.lower() and "spotify" not in task.lower() and not is_skill_enabled("browser", True):
+        msg = "The Web Navigator skill is currently disabled. Please enable it in the Skills Marketplace."
+        await emit_event(config, {"type": "step_done", "description": msg})
+        return {"result": msg, "step_results": [msg], "messages": [{"role": "assistant", "content": msg}]}
 
     await emit_event(config, {
         "type": "step_start",

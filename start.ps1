@@ -8,7 +8,7 @@ Write-Host "Starting AutoOS Gateway..." -ForegroundColor Cyan
 
 # 1. Start the FastAPI Backend
 Write-Host "Starting Backend Server..." -ForegroundColor Yellow
-$BackendProcess = Start-Process -FilePath ".\.venv\Scripts\python.exe" -ArgumentList "-m server.main" -PassThru -WindowStyle Hidden
+$BackendProcess = Start-Process -FilePath ".\.venv\Scripts\python.exe" -ArgumentList "server\main.py" -PassThru -WindowStyle Hidden
 
 # 2. Start the Frontend (Electron + React)
 Write-Host "Starting Desktop UI..." -ForegroundColor Yellow

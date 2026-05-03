@@ -12,3 +12,8 @@ This file tracks recurring behaviors to anticipate user needs.
 - WhatsApp
 
 - Observed usage of browser at 2026-05-03 02:15:33.707181
+- Observed usage of whatsapp at 2026-05-03 08:23:17.683596
+- Observed usage of whatsapp at 2026-05-03 08:30:13.565034
+- Observed usage of downloads at 2026-05-03 08:30:59.156682
+- Observed usage of downloads at 2026-05-03 08:31:19.368803
+- Observed usage of downloads at 2026-05-03 08:44:47.038618

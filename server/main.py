@@ -4,7 +4,7 @@ import logging
 import asyncio
 from typing import Dict
 from pathlib import Path
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
@@ -382,6 +382,31 @@ async def save_workflow(data: dict):
     with open(wf_path / f"{wf_id}.json", "w") as f:
         json.dump(data, f, indent=2)
     return {"status": "saved"}
+
+@app.delete("/system/workflows/{workflow_id}")
+async def delete_workflow(workflow_id: str):
+    wf_path = Path(f"server/knowledge/workflows/{workflow_id}.json")
+    if wf_path.exists():
+        wf_path.unlink()
+        return {"status": "deleted"}
+    return {"status": "not_found"}
+
+@app.get("/system/skills")
+async def get_skills():
+    wf_path = Path("server/knowledge/skills.json")
+    if not wf_path.exists(): return []
+    with open(wf_path, "r") as f:
+        return json.load(f)
+
+@app.post("/system/skills/save")
+async def save_skills(request: Request):
+    data = await request.json()
+    wf_path = Path("server/knowledge/skills.json")
+    wf_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(wf_path, "w") as f:
+        json.dump(data, f, indent=2)
+    return {"status": "saved"}
+
 
 if __name__ == "__main__":
     import uvicorn

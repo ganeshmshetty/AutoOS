@@ -7,6 +7,7 @@ This document provides step-by-step instructions for setting up, running, and te
 ## 1. Prerequisites
 
 Before starting, ensure you have the following installed:
+
 - **Python 3.12**
 - **Playwright** (for browser automation)
 - **A Google Gemini API Key**
@@ -16,12 +17,14 @@ Before starting, ensure you have the following installed:
 ## 2. Installation
 
 1.  **Activate your Virtual Environment**:
+
     ```powershell
     # From the project root
     .\.venv\Scripts\Activate.ps1
     ```
 
 2.  **Install the Server Package**:
+
     ```powershell
     pip install -e server/
     ```
@@ -38,6 +41,7 @@ Before starting, ensure you have the following installed:
 Create a `.env` file in the `server/` directory (or copy from `.env.example`).
 
 **[server/.env](file:///c:/Users/jaswa/Downloads/AutoOS/server/.env)**:
+
 ```env
 AUTOFLOW_PORT=8765
 GOOGLE_API_KEY=your_gemini_api_key_here
@@ -63,6 +67,7 @@ The server will start at `http://localhost:8765`. You can view the interactive A
 There are two ways to test the gateway to ensure the routing and browser automation are working.
 
 ### Option A: Using the Test Script
+
 I have provided a helper script to send requests easily:
 
 ```powershell
@@ -74,6 +79,7 @@ python scripts/test_gateway.py "Check the weather in Tokyo"
 ```
 
 ### Option B: Using cURL
+
 You can also test via raw HTTP requests:
 
 ```powershell
@@ -91,8 +97,8 @@ The Gateway uses **LangGraph** to process every request through a specific lifec
 1.  **Input**: The user speaks or types a task.
 2.  **Planner Node**: The task is sent to Gemini to decide if it's a `browser` task or an `os` task.
 3.  **Router**: A conditional switch that directs the flow:
-    *   If **Browser**: It triggers the `browser_executor` which uses `browser-use` to navigate the web.
-    *   If **OS**: It currently flags the request as an OS task (to be handled by Agent-S in the next phase).
+    - If **Browser**: It triggers the `browser_executor` which uses `browser-use` to navigate the web.
+    - If **OS**: It currently flags the request as an OS task (to be handled by Agent-S in the next phase).
 4.  **Result**: The final output is returned to the user via the API response.
 
 ---

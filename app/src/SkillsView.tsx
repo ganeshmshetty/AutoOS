@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Puzzle, 
   CheckCircle2, 
@@ -34,17 +34,49 @@ const INITIAL_SKILLS: Skill[] = [
 function SkillsView() {
   const [skills, setSkills] = useState<Skill[]>(INITIAL_SKILLS);
   const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('http://localhost:8765/system/skills')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.length > 0) {
+          const merged = INITIAL_SKILLS.map(s => {
+            const found = data.find((d: any) => d.id === s.id);
+            return found ? { ...s, enabled: found.enabled } : s;
+          });
+          setSkills(merged);
+        }
+      })
+      .catch(e => console.error("Failed to load skills", e))
+      .finally(() => setLoading(false));
+  }, []);
 
   const toggleSkill = (id: string) => {
-    setSkills(prev => prev.map(s => 
+    const newSkills = skills.map(s => 
       s.id === id ? { ...s, enabled: !s.enabled } : s
-    ));
+    );
+    setSkills(newSkills);
+    
+    fetch('http://localhost:8765/system/skills/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newSkills.map(s => ({ id: s.id, enabled: s.enabled })))
+    }).catch(e => console.error("Failed to save skills", e));
   };
 
   const filteredSkills = skills.filter(s => 
     s.name.toLowerCase().includes(search.toLowerCase()) || 
     s.category.toLowerCase().includes(search.toLowerCase())
   );
+
+  if (loading) {
+    return (
+      <div className="skills-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <p style={{ color: '#64748b' }}>Loading skills...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="skills-container">

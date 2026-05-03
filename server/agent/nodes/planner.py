@@ -60,7 +60,7 @@ class TaskPlan(BaseModel):
             "  security     → {action: str}\n"
             "  diagnostics  → {check_type: str}\n"
             "  vision       → {action: str}\n"
-            "  app_control  → {app_name: str, action: str, input: str}"
+            "  app_control  → {app_name: str, action: str, target: str, input: str}"
         ),
     )
     needs_hitl: bool = Field(
@@ -138,7 +138,7 @@ STRICT RULES
 ═══════════════════════════════════
 
 1. Calculator = ALWAYS "os". Never "browser". Never google.com/calc.
-2. Any local app = ALWAYS "os"
+2. Any local app (including WhatsApp Desktop) = ALWAYS "os"
 3. Any website / internet = ALWAYS "browser"
 4. Keep plan steps short — max 6 steps
 5. Never use words like: "exe", "subprocess", "API", "DOM", "render"

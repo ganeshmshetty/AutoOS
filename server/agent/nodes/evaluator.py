@@ -77,7 +77,7 @@ async def evaluator(state: AgentState, config: RunnableConfig) -> dict[str, Any]
     # ── Single-action tasks: skip LLM evaluation for speed ────────────────
     # If the task is clearly a single action (no "and", "then", etc.), skip.
     task_lower = task.lower()
-    multi_step_signals = [" and ", " then ", " after that", " also ", " next ", ", then"]
+    multi_step_signals = [" and ", " then ", " after that", " also ", " next ", ", then", ", ", " and also "]
     is_likely_multi_step = any(sig in task_lower for sig in multi_step_signals)
 
     if not is_likely_multi_step and steps_taken >= 1:

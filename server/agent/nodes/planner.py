@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from agent.bus import emit_event
 from agent.llm_factory import get_llm, invoke_with_fallback
 from agent.state import AgentState
+from agent.shared_state import SharedStateManager
 
 logger = logging.getLogger("AutoOS.planner")
 
@@ -28,7 +29,7 @@ class TaskPlan(BaseModel):
     sub_category: Literal[
         "web_search", "web_form", "media_playback", "gov_portal",
         "file_ops", "app_launch", "hardware", "settings",
-        "process_mgmt", "security", "diagnostics", "vision", "app_control", 
+        "process_mgmt", "security", "diagnostics", "vision", "app_control", "window_mgmt",
         "knowledge", "math", "unknown",
     ] = Field(description="The specific intent within the chosen category.")
     plain_english_plan: str = Field(
@@ -60,7 +61,8 @@ class TaskPlan(BaseModel):
             "  security     → {action: str}\n"
             "  diagnostics  → {check_type: str}\n"
             "  vision       → {action: str}\n"
-            "  app_control  → {app_name: str, action: str, target: str, input: str}"
+            "  app_control  → {app_name: str, action: str, target: str, input: str}\n"
+            "  window_mgmt  → {app_name: str, action: str}"
         ),
     )
     needs_hitl: bool = Field(
@@ -147,6 +149,7 @@ STRICT RULES
    - Example: If last_url was 'spotify.com', "play hit songs" → browser_executor (Spotify).
    - Example: If last_url was 'amazon.com', "find shoes" → browser_executor (Amazon).
 8. USE PRONOUNS: If the user refers to "it", "him", or "that chat", look at the entities in CURRENT CONTEXT to resolve the target.
+9. CHAINING DATA: Look at 'last_extracted_text' in SHARED STATE. If the user asks to "save that", "email that", or "put that in a file", use this text as the 'input' for the OS module.
 """
 
 
@@ -168,8 +171,8 @@ async def planner(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     original_task = state.get("task", "").strip()
     current_task = remaining if (remaining and steps_taken > 0) else original_task
 
-    # Check for Fast-Track Routing
-    if state.get("confidence") == 1.0 and state.get("next_action"):
+    # Check for Fast-Track Routing (Only on first step)
+    if steps_taken == 0 and state.get("confidence") == 1.0 and state.get("next_action"):
         logger.info("Fast-track hit: %s/%s", state.get("next_action"), state.get("sub_category"))
         return {
             "steps_taken": steps_taken + 1,
@@ -210,7 +213,11 @@ async def planner(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
             + f"\n\nNow classify ONLY the REMAINING task below."
         )
 
-    prompt = f'{_SYSTEM_PROMPT}{ctx_str}{history_str}\n\nUser request: "{current_task}"'
+    # Pull in shared state data
+    shared_data = SharedStateManager.get_all()
+    shared_str = f"\n\nSHARED STATE: {shared_data}" if any(shared_data.values()) else ""
+
+    prompt = f'{_SYSTEM_PROMPT}{ctx_str}{shared_str}{history_str}\n\nUser request: "{current_task}"'
 
     logger.info("Classifying task (step %d): %s", steps_taken + 1, current_task)
     plan: TaskPlan = await invoke_with_fallback(structured_llm, prompt)

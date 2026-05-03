@@ -20,8 +20,21 @@ from agent.tools.browser_tool import run_browser_task
 from agent.tools.desktop_tool import run_os_task
 from agent.bus import emit_event
 from agent.skills import is_skill_enabled
+from agent.shared_state import SharedStateManager
 
 logger = logging.getLogger("AutoOS.executor")
+
+
+def play_feedback(success: bool):
+    """Play a native Windows sound for feedback."""
+    try:
+        import winsound
+        if success:
+            winsound.PlaySound("SystemAsterisk", winsound.SND_ALIAS)
+        else:
+            winsound.PlaySound("SystemHand", winsound.SND_ALIAS)
+    except Exception:
+        pass
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -69,6 +82,10 @@ async def browser_executor(state: AgentState, config: RunnableConfig) -> dict[st
 
     await emit_event(config, {"type": "step_done", "description": "Completed browser task"})
 
+    # Auditory feedback
+    is_success = "failed" not in str(result).lower() and "error" not in str(result).lower()
+    play_feedback(is_success)
+
     # Detect current platform for context persistence
     new_ctx = {}
     if "spotify.com" in str(result).lower() or "spotify" in task.lower():
@@ -77,6 +94,11 @@ async def browser_executor(state: AgentState, config: RunnableConfig) -> dict[st
     elif "youtube.com" in str(result).lower() or "youtube" in task.lower():
         new_ctx["last_url"] = "https://www.youtube.com"
         new_ctx["last_app"] = "youtube"
+
+    # Update shared state for chaining
+    SharedStateManager.set("last_extracted_text", result)
+    if new_ctx.get("last_url"): SharedStateManager.set("last_url", new_ctx["last_url"])
+    if new_ctx.get("last_app"): SharedStateManager.set("last_app", new_ctx["last_app"])
 
     return {
         "result": result,
@@ -101,6 +123,7 @@ _STATUS_MAP = {
     "security":     "Running a security check...",
     "diagnostics":  "Running diagnostics...",
     "vision":       "Analyzing what's on screen...",
+    "window_mgmt":  "Arranging your windows...",
 }
 
 
@@ -149,12 +172,20 @@ async def os_executor(state: AgentState, config: RunnableConfig) -> dict[str, An
 
     await emit_event(config, {"type": "step_done", "description": f"Done! {result}"})
 
+    # Auditory feedback
+    is_success = "not find" not in result.lower() and "failed" not in result.lower() and "wrong" not in result.lower()
+    play_feedback(is_success)
+
     # Build context updates from entities for chaining
     new_ctx = {}
     if entities:
         new_ctx["last_entities"] = entities
     if sub_category == "app_launch" and entities:
         new_ctx["last_app"] = entities[0]
+
+    # Update shared state
+    if new_ctx.get("last_entities"): SharedStateManager.set("last_entities", new_ctx["last_entities"])
+    if new_ctx.get("last_app"): SharedStateManager.set("last_app", new_ctx["last_app"])
 
     return {
         "result": result,

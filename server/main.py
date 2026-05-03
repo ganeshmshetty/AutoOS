@@ -272,6 +272,15 @@ async def background_heartbeat():
                     "type": "guardian_alert",
                     "message": f"Low Battery ({battery.percent}%). Please connect a charger."
                 })
+
+            # Check Disk Space
+            disk = psutil.disk_usage('C:')
+            free_gb = disk.free / (1024**3)
+            if free_gb < 10:
+                await manager.broadcast({
+                    "type": "guardian_alert",
+                    "message": f"Low Disk Space detected on C: ({free_gb:.1f} GB free). Suggest clearing downloads."
+                })
         except Exception as e:
             logger.error(f"Heartbeat error: {e}")
         
@@ -445,4 +454,4 @@ async def save_skills(request: Request):
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("AUTOFLOW_PORT", 8765))
-    uvicorn.run(app, host="127.0.0.1", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=port)

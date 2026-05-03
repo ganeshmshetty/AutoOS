@@ -57,6 +57,9 @@ async def run_os_task(
         case "app_control":
             from agent.modules import app_module
             return await app_module.run(task, entities, action_params)
+        case "window_mgmt":
+            from agent.modules import window_module
+            return await window_module.run(task, entities, action_params)
         case _:
             logger.warning("Unknown sub_category '%s', trying app_launch", sub_category)
             from agent.modules import app_module

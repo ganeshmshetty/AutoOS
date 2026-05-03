@@ -16,6 +16,7 @@ import asyncio
 import logging
 import os
 import subprocess
+import psutil
 try:
     import winreg
 except ImportError:
@@ -63,6 +64,7 @@ async def run(task: str, entities: list[str], action_params: dict) -> str:
         lambda: _try_registry(aliases),
         lambda: _try_direct_search(aliases),
         lambda: _try_shortcut_search(aliases),
+        lambda: _try_uwp_launch(aliases),
         lambda: _try_shell_execute(app_name, aliases),
         lambda: _try_start_menu_search(app_name),
     ]
@@ -75,7 +77,14 @@ async def run(task: str, entities: list[str], action_params: dict) -> str:
     for strategy in strategies:
         result = await strategy()
         if result["success"]:
-            logger.info("Launch succeeded via %s", result.get("method", "unknown"))
+            # Smart Auto-Healing: Verify if the app actually started
+            if result.get("method") in ["shell_execute", "uwp_launch", "indexer"]:
+                await asyncio.sleep(3.0) # Wait for process to init
+                if not _check_if_running(aliases):
+                    logger.warning("App launch reported success but process not found. Triggering auto-healing...")
+                    deep_result = await _deep_scan_strategy(aliases)
+                    if deep_result["success"]:
+                        result["message"] = f"Standard launch failed, but I found and opened '{app_name}' via deep-system scan."
             
             if action == "interact" or input_text or action == "send_message" or "whatsapp" in app_name.lower():
                 await asyncio.sleep(1.5) # Reduced wait time
@@ -263,8 +272,8 @@ def _try_shortcut_indexer_sync(aliases: list[str]) -> dict:
         conn.Open("Provider=Search.CollatorDSO;Extended Properties='Application=Windows';")
         rs = win32com.client.Dispatch("ADODB.Recordset")
         
-        terms = [a.lower() for a in aliases]
-        kw_clauses = [f"System.FileName LIKE '%{t.replace(\"'\", \"''\")}%'" for t in terms]
+        terms = [a.lower().replace("'", "''") for a in aliases]
+        kw_clauses = [f"System.FileName LIKE '%{t}%'" for t in terms]
         
         query = (
             "SELECT TOP 5 System.ItemNameDisplay, System.ItemPathDisplay "
@@ -315,6 +324,8 @@ async def _try_shell_execute(app_name: str, aliases: list[str]) -> dict:
         "store": "ms-windows-store:",
         "weather": "bingweather:",
         "whatsapp": "whatsapp:",
+        "aimp": "aimp:",
+        "music": "aimp:",
         "spotify": "spotify:",
         "edge": "microsoft-edge:",
         "browser": "https://google.com",
@@ -352,6 +363,34 @@ async def _try_shell_execute(app_name: str, aliases: list[str]) -> dict:
             }
         except Exception as exc:
             logger.debug("Shell execute '%s' failed: %s", candidate, exc)
+    return {"success": False}
+
+
+async def _try_uwp_launch(aliases: list[str]) -> dict:
+    """Try to find and launch a UWP app via PowerShell Get-StartApps."""
+    try:
+        # We search for the first match among aliases
+        for alias in aliases:
+            # Use PowerShell to find the AppID
+            cmd = f'powershell -Command "Get-StartApps | Where-Object {{ $_.Name -like \'*{alias}*\' }} | Select-Object -ExpandProperty AppID -First 1"'
+            process = await asyncio.create_subprocess_shell(
+                cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, _ = await process.communicate()
+            app_id = stdout.decode().strip()
+            
+            if app_id:
+                logger.info("Found UWP AppID: %s", app_id)
+                # Launch via explorer shell
+                subprocess.Popen(f"explorer.exe shell:AppsFolder\\{app_id}", shell=True)
+                return {
+                    "success": True, "method": "uwp_launch",
+                    "message": f"Launched {alias} via Windows App Store.",
+                }
+    except Exception as exc:
+        logger.debug("UWP launch failed: %s", exc)
     return {"success": False}
 
 
@@ -449,3 +488,68 @@ async def _interact_with_app(launch_msg: str, input_text: str, app_name: str = "
     except Exception as exc:
         logger.warning("Interaction failed: %s", exc)
         return f"{launch_msg} (Interaction failed: {exc})"
+def _check_if_running(aliases: list[str]) -> bool:
+    """Check if any process name matches the app aliases."""
+    try:
+        search_terms = [a.lower().replace(".exe", "") for a in aliases]
+        for proc in psutil.process_iter(['name']):
+            try:
+                pname = proc.info['name'].lower()
+                if any(term in pname for term in search_terms):
+                    return True
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+    except Exception as e:
+        logger.debug("Process check failed: %s", e)
+    return False
+
+
+async def _deep_scan_strategy(aliases: list[str]) -> dict:
+    """Intensive search for the app using broader Indexer and Registry patterns."""
+    logger.info("Running Deep Scan for %s", aliases)
+    # We try UWP first as it's the most common 'silent' failure source
+    uwp_res = await _try_uwp_launch(aliases)
+    if uwp_res["success"]:
+        return uwp_res
+    
+    # Then try a broader Indexer search (no System.ItemType constraint)
+    if win32com:
+        try:
+            res = await asyncio.to_thread(_search_indexer_broad_sync, aliases)
+            if res["success"]:
+                return res
+        except: pass
+        
+    return {"success": False}
+
+
+def _search_indexer_broad_sync(aliases: list[str]) -> dict:
+    """Fuzzier indexer query for auto-healing."""
+    try:
+        pythoncom.CoInitialize()
+        conn = win32com.client.Dispatch("ADODB.Connection")
+        conn.Open("Provider=Search.CollatorDSO;Extended Properties='Application=Windows';")
+        rs = win32com.client.Dispatch("ADODB.Recordset")
+        
+        terms = [a.lower().replace("'", "''") for a in aliases]
+        for term in terms:
+            query = (
+                "SELECT System.ItemPathDisplay FROM SystemIndex "
+                f"WHERE (System.ItemNameDisplay LIKE '%{term}%' OR System.FileName LIKE '%{term}%') "
+                "AND (System.ItemType = '.exe' OR System.ItemType = '.lnk' OR System.ItemType = '.url') "
+                "ORDER BY System.Search.Rank DESC"
+            )
+            try:
+                rs.Open(query, conn)
+                if not rs.EOF:
+                    path = rs.Fields.Item("System.ItemPathDisplay").Value
+                    if path and Path(path).exists():
+                        os.startfile(path)
+                        return {"success": True}
+            except: continue
+            finally:
+                if rs.State == 1: rs.Close()
+        conn.Close()
+    finally:
+        pythoncom.CoUninitialize()
+    return {"success": False}

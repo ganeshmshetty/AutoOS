@@ -21,9 +21,13 @@ pause
 exit /b 1
 
 :ENV_OK
-echo [1/2] Cleaning up previous sessions...
+echo [1/2] Cleaning up previous sessions and ports...
 taskkill /F /IM python.exe /T >nul 2>&1
 taskkill /F /IM node.exe /T >nul 2>&1
+:: Kill anything on 8765 (Backend)
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr :8765 ^| findstr LISTENING') do taskkill /F /PID %%a >nul 2>&1
+:: Kill anything on 5173 (Vite)
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr :5173 ^| findstr LISTENING') do taskkill /F /PID %%a >nul 2>&1
 
 echo [2/2] Launching Windows Native Backend...
 :: Use cmd /k to keep the window open if the backend crashes
@@ -36,8 +40,8 @@ echo  IMPORTANT: Wait until the Backend window shows:
 echo  "Uvicorn running on http://0.0.0.0:8765"
 echo  before sending any commands to the assistant.
 echo ======================================================
-cd app
-call npm run dev
+cd /d "%~dp0app"
+npm run dev
 
 echo.
 echo Stopping Backend Services...

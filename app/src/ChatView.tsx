@@ -239,20 +239,57 @@ function ChatView({
             </div>
           )}
 
-          {messages.map((m: Message) => {
-            const safeContent = typeof m.content === 'string'
-              ? m.content
-              : typeof (m.content as any)?.text === 'string'
-              ? (m.content as any).text
-              : JSON.stringify(m.content);
+          {messages.map((m: Message, index: number) => {
+            let safeContent = '';
+            if (typeof m.content === 'string') {
+              safeContent = m.content;
+            } else if (Array.isArray(m.content)) {
+              safeContent = (m.content as any[]).map((block: any) => 
+                typeof block === 'string' ? block : (block.text || JSON.stringify(block))
+              ).join(' ');
+            } else if (typeof m.content === 'object' && m.content !== null) {
+              safeContent = (m.content as any).text || JSON.stringify(m.content);
+            } else {
+              safeContent = String(m.content);
+            }
+
+            const prevM = messages[index - 1];
+            const nextM = messages[index + 1];
+            
+            const isFirstInGroup = !prevM || prevM.role !== m.role;
+            const isLastInGroup = !nextM || nextM.role !== m.role;
+            const isSystem = m.role === 'system';
+
+            let groupClass = '';
+            if (!isSystem) {
+              if (isFirstInGroup && isLastInGroup) groupClass = 'single';
+              else if (isFirstInGroup) groupClass = 'first';
+              else if (isLastInGroup) groupClass = 'last';
+              else groupClass = 'middle';
+            }
+
             return (
-              <div key={m.id} className={`message message-${m.role}`}>
-                {m.subCategory && (
-                  <div className={`badge badge-${m.type}`}>
-                    {CATEGORY_LABELS[m.subCategory] || m.subCategory}
+              <div 
+                key={m.id} 
+                className={`message message-${m.role} ${groupClass}`}
+                style={{ 
+                  marginTop: isFirstInGroup && index !== 0 ? '1rem' : '0.2rem',
+                  marginBottom: isLastInGroup ? '0.5rem' : '0'
+                }}
+              >
+                {isFirstInGroup && !isSystem && m.role === 'agent' && (
+                  <div className="message-avatar">
+                    <Sparkles size={16} color="#0ea5e9" />
                   </div>
                 )}
-                {safeContent}
+                <div className="message-content">
+                  {m.subCategory && (
+                    <div className={`badge badge-${m.type}`}>
+                      {CATEGORY_LABELS[m.subCategory] || m.subCategory}
+                    </div>
+                  )}
+                  {safeContent}
+                </div>
               </div>
             );
           })}

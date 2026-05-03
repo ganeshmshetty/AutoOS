@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from agent.graph import app_graph
 from agent.bus import manager, emit_event
 from routers.face_auth import router as face_auth_router
+from routers.voice import router as voice_router
 from dotenv import load_dotenv
 
 logging.basicConfig(level=logging.INFO)
@@ -30,6 +31,7 @@ app.add_middleware(
 )
 
 app.include_router(face_auth_router)
+app.include_router(voice_router)
 
 # ── Static Files ─────────────────────────────────────────────────────────────
 os.makedirs(os.path.join(os.path.dirname(__file__), "screenshots"), exist_ok=True)

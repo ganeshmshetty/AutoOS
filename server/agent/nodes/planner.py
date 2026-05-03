@@ -29,7 +29,7 @@ class TaskPlan(BaseModel):
     sub_category: Literal[
         "web_search", "web_form", "media_playback", "gov_portal",
         "file_ops", "app_launch", "hardware", "settings",
-        "process_mgmt", "security", "diagnostics", "vision", "app_control", "window_mgmt",
+        "process_mgmt", "security", "diagnostics", "vision", "app_control", "window_mgmt", "whatsapp_mgmt",
         "knowledge", "math", "unknown",
     ] = Field(description="The specific intent within the chosen category.")
     plain_english_plan: str = Field(
@@ -62,7 +62,8 @@ class TaskPlan(BaseModel):
             "  diagnostics  → {check_type: str}\n"
             "  vision       → {action: str}\n"
             "  app_control  → {app_name: str, action: str, target: str, input: str}\n"
-            "  window_mgmt  → {app_name: str, action: str}"
+            "  window_mgmt  → {app_name: str, action: str}\n"
+            "  whatsapp_mgmt → {action: str, target: str, input: str}"
         ),
     )
     needs_hitl: bool = Field(
@@ -150,6 +151,10 @@ STRICT RULES
    - Example: If last_url was 'amazon.com', "find shoes" → browser_executor (Amazon).
 8. USE PRONOUNS: If the user refers to "it", "him", or "that chat", look at the entities in CURRENT CONTEXT to resolve the target.
 9. CHAINING DATA: Look at 'last_extracted_text' in SHARED STATE. If the user asks to "save that", "email that", or "put that in a file", use this text as the 'input' for the OS module.
+10. WHATSAPP DESKTOP: Use 'whatsapp_mgmt' for all WhatsApp Desktop tasks. 
+    - action='send_message' (needs target and input)
+    - action='read_messages' (needs target)
+    - action='open_link' (needs target)
 """
 
 

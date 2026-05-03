@@ -124,6 +124,7 @@ _STATUS_MAP = {
     "diagnostics":  "Running diagnostics...",
     "vision":       "Analyzing what's on screen...",
     "window_mgmt":  "Arranging your windows...",
+    "whatsapp_mgmt": "Managing your WhatsApp chats...",
 }
 
 

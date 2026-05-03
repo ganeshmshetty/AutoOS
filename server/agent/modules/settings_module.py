@@ -1,6 +1,6 @@
 """
-settings_module.py — System settings control for AutoOS.
-Uses action_params.setting and action_params.direction from the planner.
+settings_module.py — Universal Settings Navigator for AutoOS.
+Maps natural language to Windows 'ms-settings:' URI schemes.
 """
 from __future__ import annotations
 import os
@@ -11,121 +11,136 @@ import winreg
 
 logger = logging.getLogger("AutoOS.settings_module")
 
+# --- Comprehensive Settings Registry ---
+# Format: "keyword": "ms-settings:uri"
+SETTINGS_MAP = {
+    # System
+    "display": "ms-settings:display",
+    "screen": "ms-settings:display",
+    "resolution": "ms-settings:display",
+    "brightness": "ms-settings:display",
+    "sound": "ms-settings:sound",
+    "audio": "ms-settings:sound",
+    "notifications": "ms-settings:notifications",
+    "focus": "ms-settings:quiethours",
+    "power": "ms-settings:powersleep",
+    "battery": "ms-settings:powersleep",
+    "sleep": "ms-settings:powersleep",
+    "storage": "ms-settings:storagesense",
+    "multitasking": "ms-settings:multitasking",
+    "activation": "ms-settings:activation",
+    "recovery": "ms-settings:recovery",
+    "projecting": "ms-settings:project",
+    "about": "ms-settings:about",
+    
+    # Devices
+    "bluetooth": "ms-settings:bluetooth",
+    "devices": "ms-settings:bluetooth",
+    "printers": "ms-settings:printers",
+    "scanners": "ms-settings:printers",
+    "mouse": "ms-settings:mousetouchpad",
+    "touchpad": "ms-settings:devices-touchpad",
+    "typing": "ms-settings:typing",
+    "usb": "ms-settings:usb",
+    
+    # Network
+    "network": "ms-settings:network",
+    "wifi": "ms-settings:network-wifi",
+    "ethernet": "ms-settings:network-ethernet",
+    "vpn": "ms-settings:network-vpn",
+    "airplane": "ms-settings:network-airplanemode",
+    "hotspot": "ms-settings:network-mobilehotspot",
+    "proxy": "ms-settings:network-proxy",
+    
+    # Personalization
+    "personalization": "ms-settings:personalization",
+    "background": "ms-settings:personalization-background",
+    "colors": "ms-settings:colors",
+    "dark mode": "ms-settings:colors",
+    "themes": "ms-settings:themes",
+    "lock screen": "ms-settings:lockscreen",
+    "fonts": "ms-settings:fonts",
+    "taskbar": "ms-settings:taskbar",
+    "start menu": "ms-settings:start",
+    
+    # Apps
+    "apps": "ms-settings:appsfeatures",
+    "features": "ms-settings:appsfeatures",
+    "default apps": "ms-settings:defaultapps",
+    "startup": "ms-settings:startupapps",
+    "offline maps": "ms-settings:maps",
+    
+    # Accounts
+    "accounts": "ms-settings:yourinfo",
+    "email": "ms-settings:emailandaccounts",
+    "sign-in": "ms-settings:signinoptions",
+    "password": "ms-settings:signinoptions",
+    
+    # Time & Language
+    "time": "ms-settings:dateandtime",
+    "date": "ms-settings:dateandtime",
+    "language": "ms-settings:regionlanguage",
+    "region": "ms-settings:regionlanguage",
+    "speech": "ms-settings:speech",
+    
+    # Gaming
+    "gaming": "ms-settings:gaming-gamebar",
+    "game bar": "ms-settings:gaming-gamebar",
+    "game mode": "ms-settings:gaming-gamemode",
+    
+    # Accessibility
+    "accessibility": "ms-settings:easeofaccess",
+    "ease of access": "ms-settings:easeofaccess",
+    "magnifier": "ms-settings:easeofaccess-magnifier",
+    "narrator": "ms-settings:easeofaccess-narrator",
+    "high contrast": "ms-settings:easeofaccess-highcontrast",
+    "captions": "ms-settings:easeofaccess-closedcaptioning",
+    
+    # Privacy & Security
+    "privacy": "ms-settings:privacy",
+    "security": "ms-settings:windowsdefender",
+    "windows security": "ms-settings:windowsdefender",
+    "location": "ms-settings:privacy-location",
+    "camera": "ms-settings:privacy-camera",
+    "microphone": "ms-settings:privacy-microphone",
+    
+    # Update
+    "update": "ms-settings:windowsupdate",
+    "windows update": "ms-settings:windowsupdate",
+    "insider": "ms-settings:windowsinsider",
+}
 
 async def run(task: str, entities: list[str], action_params: dict) -> str:
-    setting: str = action_params.get("setting", "").lower()
-    direction: str = action_params.get("direction", "").lower()
+    query = action_params.get("setting") or (entities[0] if entities else "")
     task_lower = task.lower()
 
-    # Use structured params first
-    if setting in ("text_size", "font_size", "text size", "font size"):
-        return await _change_text_size(direction)
-    if setting in ("brightness", "screen_brightness"):
-        return await _change_brightness(direction)
-    if setting in ("dark_mode", "dark mode", "night_mode"):
-        return await _toggle_dark_mode()
-    if setting in ("high_contrast", "contrast"):
-        return await _toggle_high_contrast()
-    if setting in ("magnifier", "zoom"):
-        return await _open_magnifier()
-    if setting in ("resolution", "display"):
-        return await _open_display_settings()
-    if setting in ("accessibility", "ease_of_access"):
-        return await _open_accessibility()
-    if setting in ("airplane_mode", "airplane mode", "flight_mode"):
-        return await _toggle_airplane_mode()
-    if setting in ("power_mode", "power_plan", "battery_saver", "performance_mode"):
-        mode = action_params.get("mode") or direction or task_lower
-        return await _set_power_mode(mode)
-    if setting in ("night_light", "night light", "blue light"):
-        return await _toggle_night_light()
-    if setting in ("transparency", "transparency_effects", "glass"):
-        return await _toggle_transparency()
-    if setting in ("bluetooth", "bluetooth_devices", "wifi", "network"):
-        from agent.modules import hardware_module
-        action_params["device_type"] = setting
-        return await hardware_module.run(task, entities, action_params)
+    # 1. Direct Registry Match
+    for keyword, uri in SETTINGS_MAP.items():
+        if keyword in query.lower() or keyword in task_lower:
+            os.startfile(uri)
+            return f"I've opened the '{keyword.title()}' settings for you directly."
 
-    # Fallback to keyword scan
-    if any(w in task_lower for w in ("font", "text", "bigger", "larger", "size", "small", "zoom")):
-        return await _change_text_size(direction or task_lower)
-    if any(w in task_lower for w in ("brightness", "dim", "bright")):
-        return await _change_brightness(direction or task_lower)
-    if any(w in task_lower for w in ("dark mode", "dark theme", "night")):
-        return await _toggle_dark_mode()
-    if any(w in task_lower for w in ("contrast", "high contrast")):
-        return await _toggle_high_contrast()
-    if any(w in task_lower for w in ("magnif", "magnifier")):
-        return await _open_magnifier()
-    if any(w in task_lower for w in ("resolution", "display")):
-        return await _open_display_settings()
-    if any(w in task_lower for w in ("accessibility", "ease of access")):
-        return await _open_accessibility()
-    if any(w in task_lower for w in ("airplane", "flight mode")):
-        return await _toggle_airplane_mode()
-    if any(w in task_lower for w in ("power", "battery", "performance", "energy", "save")):
-        return await _set_power_mode(task_lower)
-    if any(w in task_lower for w in ("night light", "blue light", "warmth")):
-        return await _toggle_night_light()
-    if any(w in task_lower for w in ("transparency", "glass", "blur")):
-        return await _toggle_transparency()
-    if "bluetooth" in task_lower or "wifi" in task_lower or "network" in task_lower:
-        from agent.modules import hardware_module
-        return await hardware_module.run(task, entities, action_params)
-
-    return await _open_settings_generic()
+    # 2. Hardcoded logic for toggles (Registry edits)
+    if "dark mode" in task_lower:
+         return await _toggle_dark_mode()
+    if "transparency" in task_lower:
+         return await _toggle_transparency()
+    
+    # 3. Fallback: Generic Settings with Search focus
+    os.startfile("ms-settings:")
+    return "I've opened the main Windows Settings. You can find your specific setting using the search bar at the top."
 
 
-async def _change_text_size(direction: str) -> str:
-    os.startfile("ms-settings:easeofaccess-display")
-    await asyncio.sleep(0.5)
-    verb = "increase" if any(w in direction for w in ("increase", "bigger", "larger", "more", "up", "boost")) else "decrease" if any(w in direction for w in ("decrease", "smaller", "less", "reduce", "down")) else "adjust"
-    return (
-        f"I opened the Text Size settings for you.\n"
-        f"Use the slider to {verb} the text size, then click Apply."
-    )
-
-
-async def _change_brightness(direction: str) -> str:
-    """Adjust brightness in a background thread."""
-    return await asyncio.to_thread(_change_brightness_sync, direction)
-
-
-def _change_brightness_sync(direction: str) -> str:
-    """Synchronous implementation of brightness adjustment."""
+async def _toggle_dark_mode() -> str:
     try:
-        # Get current brightness
-        get_result = subprocess.run(
-            [
-                "powershell", "-Command",
-                "(Get-CimInstance -Namespace root/WMI -ClassName WmiMonitorBrightness).CurrentBrightness"
-            ],
-            capture_output=True, text=True, timeout=10
-        )
-        current = int(get_result.stdout.strip()) if get_result.stdout.strip().isdigit() else 50
-
-        if any(w in direction for w in ("increase", "bright", "more", "up", "higher")):
-            new_val = min(100, current + 20)
-        elif any(w in direction for w in ("decrease", "dim", "less", "down", "lower", "reduce")):
-            new_val = max(10, current - 20)
-        else:
-            new_val = 70
-
-        # Set new brightness
-        subprocess.run(
-            [
-                "powershell", "-Command",
-                f"(Get-CimInstance -Namespace root/WMI -ClassName WmiMonitorBrightnessMethods)"
-                f".WmiSetBrightness(1, {new_val})"
-            ],
-            capture_output=True, timeout=10
-        )
-        return f"Screen brightness set to {new_val}%."
-    except Exception as exc:
-        logger.debug("Brightness adjustment failed: %s", exc)
-        os.startfile("ms-settings:display")
-        return "I opened Display Settings where you can adjust the brightness manually."
-
+        key_path = r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_WRITE) as key:
+            winreg.SetValueEx(key, "AppsUseLightTheme", 0, winreg.REG_DWORD, 0)
+            winreg.SetValueEx(key, "SystemUsesLightTheme", 0, winreg.REG_DWORD, 0)
+        return "Dark mode has been enabled via system registry."
+    except Exception as e:
+        os.startfile("ms-settings:colors")
+        return f"I couldn't change the registry, so I opened the Colors settings for you to toggle Dark Mode manually."
 
 async def _toggle_transparency() -> str:
     try:
@@ -136,124 +151,6 @@ async def _toggle_transparency() -> str:
             winreg.SetValueEx(key, "EnableTransparency", 0, winreg.REG_DWORD, new_val)
         status = "OFF" if new_val == 0 else "ON"
         return f"Transparency effects are now {status}."
-    except Exception as exc:
-        logger.error("Registry transparency toggle failed: %s", exc)
-        os.startfile("ms-settings:personalization-colors")
-        return "I opened the Color settings where you can toggle Transparency effects."
-
-
-async def _toggle_dark_mode() -> str:
-    try:
-        key_path = r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_WRITE) as key:
-            winreg.SetValueEx(key, "AppsUseLightTheme", 0, winreg.REG_DWORD, 0)
-            winreg.SetValueEx(key, "SystemUsesLightTheme", 0, winreg.REG_DWORD, 0)
-        return "Dark mode has been turned on. You should see the change immediately."
-    except Exception as exc:
-        logger.error("Registry dark mode toggle failed: %s", exc)
-        os.startfile("ms-settings:personalization")
-        return "I opened Personalization settings where you can switch to Dark mode."
-
-
-async def _toggle_high_contrast() -> str:
-    os.startfile("ms-settings:easeofaccess-highcontrast")
-    return "I opened High Contrast settings. You can turn it on or choose a theme there."
-
-
-async def _open_magnifier() -> str:
-    try:
-        subprocess.Popen("magnify.exe", shell=True)
-        return (
-            "Magnifier is now open.\n"
-            "Use Win + Plus to zoom in, Win + Minus to zoom out.\n"
-            "Press Win + Esc to close it."
-        )
-    except Exception as exc:
-        return f"Could not open Magnifier: {exc}"
-
-
-async def _open_display_settings() -> str:
-    os.startfile("ms-settings:display")
-    return "I opened Display Settings where you can change resolution, scale, and brightness."
-
-
-async def _open_accessibility() -> str:
-    os.startfile("ms-settings:easeofaccess")
-    return "I opened Accessibility (Ease of Access) settings for you."
-
-
-async def _toggle_airplane_mode() -> str:
-    try:
-        os.startfile("ms-settings:network-airplanemode")
-        return (
-            "I opened the Airplane Mode settings for you.\n"
-            "You can toggle it on or off using the switch there."
-        )
-    except Exception as exc:
-        return f"Could not open Airplane Mode settings: {exc}"
-
-
-async def _set_power_mode(mode_query: str) -> str:
-    schemes = {
-        "balanced": "381b4222-f694-41f0-9685-ff5bb260df2e",
-        "performance": "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c",
-        "power_saver": "a1841308-3541-4fab-bc81-f71556f20b4a",
-    }
-    
-    target_guid = None
-    mode_name = "Balanced"
-    
-    mq = mode_query.lower()
-    if any(w in mq for w in ("high", "performance", "fast", "gaming", "max")):
-        target_guid = schemes["performance"]
-        mode_name = "High Performance"
-    elif any(w in mq for w in ("save", "saver", "energy", "low", "battery", "eco")):
-        target_guid = schemes["power_saver"]
-        mode_name = "Power Saver"
-    elif "balanced" in mq or "normal" in mq:
-        target_guid = schemes["balanced"]
-        mode_name = "Balanced"
-
-    if target_guid:
-        try:
-            result = subprocess.run(
-                ["powercfg", "/setactive", target_guid],
-                capture_output=True, text=True, timeout=10
-            )
-            if result.returncode == 0:
-                return f"I have switched your power plan to '{mode_name}'."
-            else:
-                # If the specific GUID doesn't exist, open settings
-                os.startfile("ms-settings:powersleep")
-                return f"I tried to set the power mode to {mode_name}, but that plan might not be configured. I've opened the Power settings for you."
-        except Exception:
-            os.startfile("ms-settings:powersleep")
-            return f"I opened the Power & Sleep settings where you can adjust your performance and energy saving preferences."
-    
-    os.startfile("ms-settings:powersleep")
-    return "I opened the Power & Sleep settings for you."
-
-
-async def _toggle_night_light() -> str:
-    """Check status via Registry and toggle via URI (Binary blob writing is unstable)."""
-    try:
-        # Night light state is buried in a binary blob in CloudStore
-        key_path = r"Software\Microsoft\Windows\CurrentVersion\CloudStore\Store\DefaultNetworkCloud\default$windows.data.bluelightreduction.settings\data"
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path) as key:
-            data, _ = winreg.QueryValueEx(key, "Data")
-            # Usually the 18th byte indicates if it's on/off in the current blob format
-            # This is a heuristic but works on most Windows 10/11 builds
-            is_on = data[18] == 0x15 if len(data) > 18 else False
-            
-        status = "ON" if is_on else "OFF"
-        os.startfile("ms-settings:nightlight")
-        return f"Night Light is currently {status}. I've opened the settings for you to toggle it or change the schedule."
-    except Exception as exc:
-        logger.error("Night Light registry check failed: %s", exc)
-        os.startfile("ms-settings:nightlight")
-        return "I opened the Night Light settings for you."
-
-
-async def _open_settings_generic() -> str:
-    os.startfile("ms-settings:")
-    return "I opened Windows Settings for you."
+    except Exception as e:
+        os.startfile("ms-settings:colors")
+        return "I've opened the Color settings where you can toggle Transparency manually."

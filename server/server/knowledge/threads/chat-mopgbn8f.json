@@ -1,0 +1,22 @@
+{
+  "id": "chat-mopgbn8f",
+  "last_updated": "2026-05-03T13:08:09.877396",
+  "messages": [
+    {
+      "id": "4tayiq",
+      "role": "user",
+      "content": "Send Fuck yoou to Daiwik on Whatsapp"
+    },
+    {
+      "id": "qopush",
+      "role": "agent",
+      "content": "I will open your WhatsApp Desktop app and send the message to Daiwik for you.",
+      "type": "info"
+    },
+    {
+      "id": "3c1fy6",
+      "role": "agent",
+      "content": "\u2713 Message sent successfully to Daiwik.\n\nText: \"Fuck yoou\""
+    }
+  ]
+}

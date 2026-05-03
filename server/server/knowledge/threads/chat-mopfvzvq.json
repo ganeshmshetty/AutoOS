@@ -1,0 +1,22 @@
+{
+  "id": "chat-mopfvzvq",
+  "last_updated": "2026-05-03T12:51:36.843235",
+  "messages": [
+    {
+      "id": "17yed9",
+      "role": "user",
+      "content": "Send hi i am currenlty busy i will meet you later to Daiwik on whatsapp"
+    },
+    {
+      "id": "eyz2pk",
+      "role": "agent",
+      "content": "I will open your WhatsApp and send a message to Daiwik saying you are busy and will meet later.",
+      "type": "info"
+    },
+    {
+      "id": "biyiab",
+      "role": "agent",
+      "content": "Could not find or open WhatsApp Desktop."
+    }
+  ]
+}

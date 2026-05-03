@@ -946,6 +946,27 @@ input {
   border: 1px solid #1e293b;
   overflow: hidden;
   position: relative;
+}
+
+.backend-offline-banner {
+  background: rgba(220, 38, 38, 0.9);
+  color: white;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  z-index: 1000;
+  backdrop-filter: blur(8px);
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from { transform: translateY(-100%); }
+  to { transform: translateY(0); }
+}
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 

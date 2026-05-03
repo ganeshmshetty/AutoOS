@@ -77,6 +77,7 @@ function App() {
     type: 'task'
   });
   const [miniInput, setMiniInput] = useState('');
+  const [isBackendDown, setIsBackendDown] = useState(false);
   
   // --- Face Auth State ---
   const [faceRegistered, setFaceRegistered] = useState(false);
@@ -109,6 +110,28 @@ function App() {
     };
     loadLatest();
   }, []);
+
+  // --- Connection Monitor ---
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const res = await fetch('http://localhost:8765/health');
+        if (res.ok) {
+          if (isBackendDown) {
+            setIsBackendDown(false);
+            addMessage('system', 'Connection restored. Assistant is ready.');
+          }
+        } else {
+          setIsBackendDown(true);
+        }
+      } catch (e) {
+        setIsBackendDown(true);
+      }
+    };
+    const interval = setInterval(check, 5000);
+    check();
+    return () => clearInterval(interval);
+  }, [isBackendDown]);
 
   // --- Persistence Sync ---
   useEffect(() => {
@@ -214,7 +237,8 @@ function App() {
       .catch(e => {
         setIsRunning(false);
         setStatus('idle');
-        addMessage('system', 'Failed to connect to backend.');
+        setIsBackendDown(true);
+        addMessage('system', 'Connection lost. Please ensure the Backend window is open.');
         reject(e);
       });
     });
@@ -232,6 +256,12 @@ function App() {
 
   return (
     <div className="app-root">
+      {isBackendDown && (
+        <div className="backend-offline-banner">
+          <ShieldAlert size={16} />
+          <span>Backend Offline — Reconnecting...</span>
+        </div>
+      )}
       {compactState.isCompact && (
         <div className={`compact-popup ${isAlert ? 'alert-mode' : ''}`}>
           <div className="compact-header">

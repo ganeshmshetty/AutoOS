@@ -18,6 +18,7 @@ from agent.graph import app_graph
 from agent.bus import manager, emit_event
 from routers.face_auth import router as face_auth_router
 from routers.voice import router as voice_router
+from datetime import datetime
 from dotenv import load_dotenv
 
 logging.basicConfig(level=logging.INFO)
@@ -249,6 +250,10 @@ async def get_system_health():
         "processes": processes,
     }
 
+@app.get("/health")
+async def health_check():
+    return {"status": "ok", "timestamp": datetime.now().isoformat()}
+
 async def background_heartbeat():
     """
     Proactive Guardian Mode: Checks system status every 60 seconds 
@@ -304,7 +309,6 @@ async def kill_process_api(data: dict):
     return {"message": result}
 
 from pathlib import Path
-from datetime import datetime
 import json
 
 def _sanitize_messages(messages: list) -> list:

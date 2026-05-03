@@ -60,6 +60,9 @@ async def run_os_task(
         case "window_mgmt":
             from agent.modules import window_module
             return await window_module.run(task, entities, action_params)
+        case "whatsapp_mgmt":
+            from agent.modules import whatsapp_module
+            return await whatsapp_module.run(task, entities, action_params)
         case _:
             logger.warning("Unknown sub_category '%s', trying app_launch", sub_category)
             from agent.modules import app_module

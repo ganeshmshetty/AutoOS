@@ -50,7 +50,7 @@ class TaskPlan(BaseModel):
             "Structured parameters for the executor. The schema depends on sub_category:\n"
             "  app_launch   → {app_name: str, search_aliases: list[str]}\n"
             "  file_ops     → {keywords: list[str], file_types: list[str], time_hint: str, action: str}\n"
-            "  hardware     → {device_type: str}\n"
+            "  hardware     → {device_type: str} (e.g. 'wifi', 'bluetooth', 'printer', 'battery')\n"
             "  settings     → {setting: str, direction: str, mode: str}\n"
             "  media_playback → {platform: str, content_type: str, query: str}\n"
             "  web_search   → {query: str}\n"
@@ -101,9 +101,9 @@ ALWAYS "os" if the task uses LOCAL COMPUTER:
 ✓ "Open notepad / paint / word / excel" → os
 ✓ "Open my downloads / desktop / documents folder" → os
 ✓ "Calculate 15+30" → os (use Windows Calculator)
-✓ "Check my storage / disk space" → os
-✓ "Check battery" → os
-✓ "Check wifi / internet connection" → os
+✓ "Check my storage / disk space" → os (diagnostics)
+✓ "Check battery" → os (hardware)
+✓ "Check wifi / internet connection" → os (hardware)
 ✓ "Open settings" → os
 ✓ "Open file explorer" → os
 
@@ -167,6 +167,17 @@ async def planner(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     remaining = state.get("remaining_task", "")
     original_task = state.get("task", "").strip()
     current_task = remaining if (remaining and steps_taken > 0) else original_task
+
+    # Check for Fast-Track Routing
+    if state.get("confidence") == 1.0 and state.get("next_action"):
+        logger.info("Fast-track hit: %s/%s", state.get("next_action"), state.get("sub_category"))
+        return {
+            "steps_taken": steps_taken + 1,
+            "messages": [{
+                "role": "assistant",
+                "content": f"[Fast-Track] {state.get('next_action')}/{state.get('sub_category')} — {state.get('plain_english_plan')}",
+            }],
+        }
 
     if not current_task:
         return {

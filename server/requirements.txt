@@ -298,10 +298,7 @@ pygments==2.20.0
     # via rich
 pyjwt==2.12.1
     # via mcp
-pyobjc-core==12.1
-    # via pyobjc-framework-cocoa
-pyobjc-framework-cocoa==12.1
-    # via screeninfo
+# Removed macOS dependencies
 pyotp==2.9.0
     # via browser-use
 pyparsing==3.3.2

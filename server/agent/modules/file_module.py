@@ -97,14 +97,19 @@ async def run(task: str, entities: list[str], action_params: dict) -> str:
                 return f"Opened {target_name} from Downloads."
             except Exception as e:
                 return f"Failed to open {target_name}: {e}"
-        # Fallback: search across user roots
-        for root in _USER_ROOTS:
+        # Fallback: search across indexed folders using the Indexer
+        search_res = await _search_files([target_name], [], "any")
+        if "Found" in search_res:
+            # Try to extract the first path from the search result and open it
             try:
-                for f in root.rglob(target_name):
-                    os.startfile(str(f))
-                    return f"Opened {target_name} from {root}."
+                # The search result format is "  name  —  path  (date)"
+                first_path = search_res.split("\n")[2].split("  —  ")[1].split("  (")[0].strip()
+                if Path(first_path).exists():
+                    os.startfile(first_path)
+                    return f"Opened {target_name} found via Windows Search."
             except Exception:
-                continue
+                pass
+        
         return f"Could not find {target_name} to open."
     # Existing logic for other actions follows
     if not keywords and not file_types:
@@ -122,82 +127,144 @@ async def run(task: str, entities: list[str], action_params: dict) -> str:
     return await _search_files(keywords, file_types, time_hint)
 
 
+try:
+    import win32com.client
+    import pythoncom
+except ImportError:
+    win32com = None
+    pythoncom = None
+
+
 async def _search_files(keywords: list[str], file_types: list[str], time_hint: str) -> str:
-    kw_lower = [k.lower() for k in keywords]
-    allowed_exts = set(file_types)
-    cutoff_dt = _resolve_time_hint(time_hint)
-    results: list[tuple[datetime, Path]] = []
+    """Search for files using the Windows Search Indexer for near-instant results."""
+    if not win32com:
+        return "Search components are not available. Please ensure pywin32 is installed."
+    
+    return await asyncio.to_thread(_search_indexer_files_sync, keywords, file_types, time_hint)
 
-    for root in _USER_ROOTS:
-        if not root.exists():
-            continue
+
+def _search_indexer_files_sync(keywords: list[str], file_types: list[str], time_hint: str) -> str:
+    """Synchronous implementation of the indexer file search."""
+    try:
+        pythoncom.CoInitialize()
+        conn = win32com.client.Dispatch("ADODB.Connection")
+        conn.Open("Provider=Search.CollatorDSO;Extended Properties='Application=Windows';")
+        rs = win32com.client.Dispatch("ADODB.Recordset")
+        
+        # Build the WQL query
+        # We search in SystemIndex which covers indexed locations (Docs, Desktop, etc.)
+        where_clauses = []
+        
+        # Keyword matching on FileName
+        for kw in keywords:
+            clean_kw = kw.replace("'", "''")
+            where_clauses.append(f"(System.FileName LIKE '%{clean_kw}%' OR System.ItemNameDisplay LIKE '%{clean_kw}%')")
+            
+        # File type (extension) filtering
+        if file_types:
+            ext_clauses = [f"System.FileExtension = '{ext.lower()}'" for ext in file_types]
+            where_clauses.append(f"({' OR '.join(ext_clauses)})")
+            
+        # Time hint filtering
+        cutoff = _resolve_time_hint(time_hint)
+        if cutoff:
+            # WQL dates are in 'YYYY/MM/DD HH:MM:SS' format or ISO-like
+            wql_date = cutoff.strftime("%Y/%m/%d %H:%M:%S")
+            where_clauses.append(f"System.DateModified > '{wql_date}'")
+            
+        query = (
+            "SELECT System.ItemNameDisplay, System.ItemPathDisplay, System.DateModified "
+            "FROM SystemIndex "
+            f"WHERE {' AND '.join(where_clauses)} "
+            "AND System.Kind <> 'folder' "
+            "ORDER BY System.DateModified DESC"
+        )
+        
         try:
-            for f in root.rglob("*"):
-                if not f.is_file():
-                    continue
-                if allowed_exts and f.suffix.lower() not in allowed_exts:
-                    continue
-                name_lower = f.name.lower()
-                if not any(kw in name_lower for kw in kw_lower):
-                    continue
-                try:
-                    mtime = datetime.fromtimestamp(f.stat().st_mtime)
-                    if cutoff_dt and mtime < cutoff_dt:
-                        continue
-                    results.append((mtime, f))
-                except OSError:
-                    continue
-        except PermissionError:
-            continue
-
-    if not results:
-        return f"No files matching '{', '.join(keywords)}' found in your common folders."
-
-    results.sort(key=lambda x: x[0], reverse=True)
-    lines = [f"Found {len(results)} file(s) matching your request:\n"]
-    for mtime, path in results[:_MAX_RESULTS]:
-        lines.append(f"  {path.name}  —  {path.parent}  ({mtime.strftime('%d %b %Y')})")
-    return "\n".join(lines)
+            rs.Open(query, conn)
+            results = []
+            while not rs.EOF and len(results) < _MAX_RESULTS:
+                name = rs.Fields.Item("System.ItemNameDisplay").Value
+                path = rs.Fields.Item("System.ItemPathDisplay").Value
+                mtime = rs.Fields.Item("System.DateModified").Value
+                
+                # mtime from COM is usually a pywintypes.datetime
+                dt_str = mtime.strftime("%d %b %Y") if hasattr(mtime, "strftime") else str(mtime)
+                results.append(f"  {name}  —  {path}  ({dt_str})")
+                rs.MoveNext()
+                
+            if not results:
+                return f"No files matching '{', '.join(keywords)}' found in your indexed folders."
+                
+            return f"Found {len(results)} file(s) matching your request:\n\n" + "\n".join(results)
+            
+        finally:
+            if rs.State == 1: rs.Close()
+            conn.Close()
+            
+    except Exception as exc:
+        logger.error("File indexer search failed: %s", exc)
+        return f"I encountered an error searching for files: {exc}"
+    finally:
+        pythoncom.CoUninitialize()
 
 
 async def _recent_files(entities: list[str], file_types: list[str]) -> str:
-    allowed_exts: set[str] = set(file_types)
-    if not allowed_exts:
-        # Infer from entity names
-        for entity in entities:
-            for key, exts in _EXT_MAP.items():
-                if key in entity.lower():
-                    allowed_exts.update(exts)
+    """Retrieve the most recently modified files using the Indexer."""
+    if not win32com:
+        return "Search components are not available. Please ensure pywin32 is installed."
+    
+    return await asyncio.to_thread(_recent_files_sync, file_types)
 
-    results: list[tuple[datetime, Path]] = []
-    for root in _USER_ROOTS:
-        if not root.exists():
-            continue
-        try:
-            for f in root.rglob("*"):
-                if not f.is_file():
-                    continue
-                if allowed_exts and f.suffix.lower() not in allowed_exts:
-                    continue
-                try:
-                    mtime = datetime.fromtimestamp(f.stat().st_mtime)
-                    results.append((mtime, f))
-                except OSError:
-                    continue
-        except PermissionError:
-            continue
 
-    if not results:
-        return "No recent files found in your common folders."
-
-    results.sort(key=lambda x: x[0], reverse=True)
-    lines = ["Your most recently modified files:\n"]
-    for mtime, path in results[:_MAX_RESULTS]:
-        lines.append(
-            f"  {path.name}  —  {path.parent}  "
-            f"(last edited {mtime.strftime('%d %b %Y, %I:%M %p')})"
+def _recent_files_sync(file_types: list[str]) -> str:
+    """Synchronous implementation of the recent files indexer query."""
+    try:
+        pythoncom.CoInitialize()
+        conn = win32com.client.Dispatch("ADODB.Connection")
+        conn.Open("Provider=Search.CollatorDSO;Extended Properties='Application=Windows';")
+        rs = win32com.client.Dispatch("ADODB.Recordset")
+        
+        where_clauses = ["System.Kind <> 'folder'"]
+        
+        # File type (extension) filtering
+        if file_types:
+            ext_clauses = [f"System.FileExtension = '{ext.lower()}'" for ext in file_types]
+            where_clauses.append(f"({' OR '.join(ext_clauses)})")
+            
+        query = (
+            "SELECT TOP 15 System.ItemNameDisplay, System.ItemPathDisplay, System.DateModified "
+            "FROM SystemIndex "
+            f"WHERE {' AND '.join(where_clauses)} "
+            "ORDER BY System.DateModified DESC"
         )
-    return "\n".join(lines)
+        
+        try:
+            rs.Open(query, conn)
+            results = []
+            while not rs.EOF:
+                name = rs.Fields.Item("System.ItemNameDisplay").Value
+                path = rs.Fields.Item("System.ItemPathDisplay").Value
+                mtime = rs.Fields.Item("System.DateModified").Value
+                
+                dt_str = mtime.strftime("%d %b %Y, %I:%M %p") if hasattr(mtime, "strftime") else str(mtime)
+                results.append(f"  {name}  —  {path}  ({dt_str})")
+                rs.MoveNext()
+                
+            if not results:
+                return "No recent files found in your indexed folders."
+                
+            return "Your most recently modified files:\n\n" + "\n".join(results)
+            
+        finally:
+            if rs.State == 1: rs.Close()
+            conn.Close()
+            
+    except Exception as exc:
+        logger.error("Recent files indexer query failed: %s", exc)
+        return f"Could not retrieve recent files: {exc}"
+    finally:
+        pythoncom.CoUninitialize()
 
 
 async def _recent_downloads() -> str:

@@ -7,14 +7,44 @@ import os
 import asyncio
 import logging
 import subprocess
+import ctypes
+from ctypes import wintypes
+try:
+    import win32com.client
+    import pythoncom
+except ImportError:
+    win32com = None
+    pythoncom = None
 
 logger = logging.getLogger("AutoOS.hardware_module")
+
+class SYSTEM_POWER_STATUS(ctypes.Structure):
+    _fields_ = [
+        ('ACLineStatus', wintypes.BYTE),
+        ('BatteryFlag', wintypes.BYTE),
+        ('BatteryLifePercent', wintypes.BYTE),
+        ('SystemStatusFlag', wintypes.BYTE),
+        ('BatteryLifeTime', wintypes.DWORD),
+        ('BatteryFullLifeTime', wintypes.DWORD),
+    ]
 
 
 async def run(task: str, entities: list[str], action_params: dict) -> str:
     device_type: str = action_params.get("device_type", "").lower()
 
-    # Use structured device_type first, fallback to keyword scan
+    # Special case for combined Wifi and Bluetooth request
+    if any(w in task.lower() for w in ("wifi", "wi-fi")) and "bluetooth" in task.lower():
+        try:
+            os.startfile("ms-settings:network-wifi")
+            os.startfile("ms-settings:bluetooth")
+        except:
+            pass
+        wifi_task = asyncio.create_task(_get_available_wifi_networks())
+        bt_task = asyncio.create_task(_check_bluetooth())
+        wifi_res = await wifi_task
+        bt_res = await bt_task
+        return f"I have opened both your Wi-Fi and Bluetooth settings.\n\n{wifi_res}\n\n{bt_res}"
+
     if device_type in ("usb", "pendrive", "flash_drive", "storage"):
         return await _check_usb()
     if device_type in ("wifi", "wi-fi", "network", "internet"):
@@ -25,12 +55,16 @@ async def run(task: str, entities: list[str], action_params: dict) -> str:
         return await _fix_wifi(task.lower())
     if device_type in ("printer", "print"):
         return await _check_printer()
-    if device_type in ("sound", "audio", "speaker", "microphone"):
+    if device_type in ("sound", "audio", "speaker", "microphone", "volume"):
+        if any(w in task.lower() for w in ("up", "down", "increase", "decrease", "higher", "lower", "mute", "unmute", "set")):
+            return await _control_volume(task.lower())
         return await _run_troubleshooter("audio")
     if device_type in ("bluetooth",):
         if "toggle" in task.lower() or "turn" in task.lower() or "switch" in task.lower():
             return await _open_bluetooth_settings()
         return await _check_bluetooth()
+    if device_type in ("battery", "power", "charge"):
+        return await _get_battery_info()
 
     # Fallback keyword scan on raw task
     task_lower = task.lower()
@@ -89,6 +123,23 @@ async def _check_usb() -> str:
         return f"Could not check USB drives: {exc}"
 
 
+async def _get_battery_info() -> str:
+    status = SYSTEM_POWER_STATUS()
+    if ctypes.windll.kernel32.GetSystemPowerStatus(ctypes.byref(status)):
+        percent = status.BatteryLifePercent
+        ac = "plugged in" if status.ACLineStatus == 1 else "on battery power"
+        if percent == 255:
+            return "I couldn't detect a battery. Are you on a desktop computer?"
+        
+        msg = f"Your battery is at {percent}% and is currently {ac}."
+        if status.ACLineStatus == 0 and status.BatteryLifeTime != 0xFFFFFFFF:
+            hours = status.BatteryLifeTime // 3600
+            mins = (status.BatteryLifeTime % 3600) // 60
+            msg += f"\nEstimated time remaining: {hours}h {mins}m"
+        return msg
+    return "I couldn't retrieve the battery status via Windows API."
+
+
 async def _fix_wifi(task_lower: str) -> str:
     try:
         result = subprocess.run(
@@ -125,60 +176,65 @@ async def _fix_wifi(task_lower: str) -> str:
 
 
 async def _check_printer() -> str:
+    """Query printers in a background thread."""
+    if not win32com: return "WMI not available."
+    return await asyncio.to_thread(_check_printer_sync)
+
+
+def _check_printer_sync() -> str:
+    """Synchronous WMI printer query."""
     try:
-        result = subprocess.run(
-            [
-                "powershell", "-Command",
-                "Get-Printer | Select-Object Name,PrinterStatus | ConvertTo-Json"
-            ],
-            capture_output=True, text=True, timeout=15
-        )
-        if result.returncode != 0 or not result.stdout.strip():
-            return (
-                "No printers found on your computer.\n"
-                "Make sure the printer is turned on and connected, then ask me again."
-            )
-        import json
-        printers = json.loads(result.stdout)
-        if isinstance(printers, dict):
-            printers = [printers]
+        pythoncom.CoInitialize()
+        wmi = win32com.client.Dispatch("WbemScripting.SWbemLocator").ConnectServer(".", r"root\cimv2")
+        printers = wmi.ExecQuery("SELECT Name, PrinterStatus FROM Win32_Printer")
+        
+        if not printers:
+            return "No printers found on your computer."
+            
         lines = [f"Found {len(printers)} printer(s):\n"]
         for p in printers:
-            status = p.get("PrinterStatus", "Unknown")
-            status_text = "Ready" if status == 3 else f"Status code: {status} (may need attention)"
-            lines.append(f"  {p.get('Name', 'Unknown')} — {status_text}")
+            status = p.PrinterStatus
+            status_text = "Ready" if status == 3 else f"Status: {status} (requires attention)"
+            lines.append(f"  {p.Name} — {status_text}")
         return "\n".join(lines)
     except Exception as exc:
+        logger.error("WMI Printer check failed: %s", exc)
         return f"Could not check printers: {exc}"
+    finally:
+        pythoncom.CoUninitialize()
 
 
 async def _check_bluetooth() -> str:
+    """Query Bluetooth devices and open settings."""
+    if not win32com: return "WMI not available."
     try:
-        result = subprocess.run(
-            [
-                "powershell", "-Command",
-                "Get-PnpDevice -Class Bluetooth | Select-Object FriendlyName,Status | ConvertTo-Json"
-            ],
-            capture_output=True, text=True, timeout=15
-        )
-        
-        # Open Bluetooth settings for the user
         os.startfile("ms-settings:bluetooth")
+    except:
+        pass
+    return await asyncio.to_thread(_check_bluetooth_sync)
 
-        if result.returncode != 0 or not result.stdout.strip():
+
+def _check_bluetooth_sync() -> str:
+    """Synchronous WMI Bluetooth query."""
+    try:
+        pythoncom.CoInitialize()
+        wmi = win32com.client.Dispatch("WbemScripting.SWbemLocator").ConnectServer(".", r"root\cimv2")
+        # Use the standard Bluetooth Class GUID for the most reliable discovery
+        devices = wmi.ExecQuery("SELECT Name, Status FROM Win32_PnPEntity WHERE ClassGuid = '{e0cbf06c-cd8b-4647-bb8a-263b43f0f974}'")
+        
+        if not devices:
             return "No Bluetooth devices found. Make sure Bluetooth is turned on."
-        import json
-        devices = json.loads(result.stdout)
-        if isinstance(devices, dict):
-            devices = [devices]
+            
         lines = [f"Found {len(devices)} Bluetooth device(s):\n"]
         for d in devices:
-            lines.append(f"  {d.get('FriendlyName', 'Unknown')} — {d.get('Status', 'Unknown')}")
+            lines.append(f"  {d.Name} — {d.Status}")
         
-        lines.append("\nI have also opened your Bluetooth settings for you.")
         return "\n".join(lines)
     except Exception as exc:
+        logger.error("WMI Bluetooth check failed: %s", exc)
         return f"Could not check Bluetooth: {exc}"
+    finally:
+        pythoncom.CoUninitialize()
 
 
 async def _get_available_wifi_networks() -> str:
@@ -223,6 +279,41 @@ async def _open_wifi_settings() -> str:
 async def _open_bluetooth_settings() -> str:
     os.startfile("ms-settings:bluetooth")
     return "I opened the Bluetooth settings for you. You can turn Bluetooth on or off there."
+
+
+async def _control_volume(task_lower: str) -> str:
+    """Instant volume control using Windows Message API."""
+    try:
+        # APPCOMMAND_VOLUME_MUTE = 0x80000 (8 << 16)
+        # APPCOMMAND_VOLUME_DOWN = 0x90000 (9 << 16)
+        # APPCOMMAND_VOLUME_UP   = 0xA0000 (10 << 16)
+        
+        WM_APPCOMMAND = 0x0319
+        CMD_MUTE = 8 << 16
+        CMD_DOWN = 9 << 16
+        CMD_UP   = 10 << 16
+        
+        # Get handle to any window to send the message to (the system will catch it)
+        hwnd = ctypes.windll.user32.GetForegroundWindow()
+        
+        if "mute" in task_lower or "unmute" in task_lower:
+            ctypes.windll.user32.SendMessageW(hwnd, WM_APPCOMMAND, 0, CMD_MUTE)
+            return "Volume muted/unmuted."
+        
+        if any(w in task_lower for w in ("up", "increase", "higher", "more")):
+            # Send multiple times for noticeable effect
+            for _ in range(5):
+                ctypes.windll.user32.SendMessageW(hwnd, WM_APPCOMMAND, 0, CMD_UP)
+            return "Volume increased."
+        
+        if any(w in task_lower for w in ("down", "decrease", "lower", "less")):
+            for _ in range(5):
+                ctypes.windll.user32.SendMessageW(hwnd, WM_APPCOMMAND, 0, CMD_DOWN)
+            return "Volume decreased."
+            
+        return "I can increase, decrease, or mute your volume. What would you like me to do?"
+    except Exception as exc:
+        return f"Could not control volume: {exc}"
 
 
 async def _run_troubleshooter(category: str) -> str:

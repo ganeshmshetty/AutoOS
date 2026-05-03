@@ -25,6 +25,9 @@ class BrowserTaskResult:
 
 class BrowserAutomationRunner:
     """Runs browser automation tasks with the browser-use open-source agent."""
+    
+    _shared_browser = None
+    _shared_config = {}
 
     def __init__(
         self,
@@ -78,28 +81,39 @@ class BrowserAutomationRunner:
         return ChatGoogle(model=self.page_extraction_model, api_key=google_api_key)
 
     def _create_browser(self):
+        # Check if we can reuse the existing browser
+        current_config = {"headless": self.headless}
+        if (BrowserAutomationRunner._shared_browser and 
+            BrowserAutomationRunner._shared_config == current_config):
+            logger.info("Reusing existing persistent browser instance.")
+            return BrowserAutomationRunner._shared_browser
+
         try:
             from browser_use import Browser
         except ImportError as exc:
             raise RuntimeError("browser-use is not installed. Run `uv sync` in the server folder.") from exc
 
-        if self.use_cloud:
-            return Browser(use_cloud=True, headless=self.headless)
+        # Create a persistent profile directory to keep logins/sessions
+        profile_dir = Path("browser_profile").absolute()
+        profile_dir.mkdir(exist_ok=True)
 
-        executable_path = os.getenv("BROWSER_EXECUTABLE_PATH") or _find_chromium_executable()
-        if executable_path:
-            logger.info("Using browser executable at %s", executable_path)
-            return Browser(
-                headless=self.headless,
-                executable_path=executable_path,
-                keep_alive=_env_bool("BROWSER_KEEP_ALIVE", default=True),
-            )
-
-        logger.info("No system Chrome/Chromium found; browser-use will use its default browser.")
-        return Browser(
+        logger.info("Creating new persistent browser instance (headless=%s).", self.headless)
+        browser = Browser(
             headless=self.headless,
-            keep_alive=_env_bool("BROWSER_KEEP_ALIVE", default=True),
+            disable_security=True,  # Allows cross-domain interactions for automation
+            executable_path=os.getenv("BROWSER_EXECUTABLE_PATH") or _find_chromium_executable(),
+            user_data_dir=profile_dir,
+            keep_alive=True,
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+                "--disable-infobars",
+            ]
         )
+        
+        BrowserAutomationRunner._shared_browser = browser
+        BrowserAutomationRunner._shared_config = current_config
+        return browser
 
     async def run_task(
         self,

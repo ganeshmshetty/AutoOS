@@ -1,4 +1,10 @@
 import os
+import sys
+
+if sys.platform != "win32":
+    print("FATAL: AutoOS is a Windows-only platform. Terminating.")
+    sys.exit(1)
+
 import uuid
 import logging
 import asyncio
@@ -122,15 +128,42 @@ async def websocket_endpoint(websocket: WebSocket, execution_id: str):
 
 async def _run_agent_task(execution_id: str, task: str, params: dict | None = None):
     try:
+        # --- PHASE 3: FAST-TRACK HEURISTIC ROUTING ---
+        # Detect very common patterns to skip the LLM Planner latency
+        fast_track_state = None
+        task_lower = task.lower().strip()
+        
+        # 1. Direct Search (Google)
+        if task_lower.startswith(("google ", "search ", "search for ")):
+            query = task_lower.replace("google ", "").replace("search for ", "").replace("search ", "").strip()
+            if query:
+                fast_track_state = {
+                    "next_action": "browser",
+                    "sub_category": "web_search",
+                    "action_params": {"query": query},
+                    "plain_english_plan": f"Searching Google for '{query}'"
+                }
+
+        # 2. Direct Website Launch
+        elif task_lower.startswith(("open ", "goto ", "go to ")) and any(d in task_lower for d in (".com", ".org", ".net", ".io", "http", "www")):
+            url = task_lower.replace("open ", "").replace("goto ", "").replace("go to ", "").strip()
+            if not url.startswith("http"): url = f"https://{url}"
+            fast_track_state = {
+                "next_action": "browser",
+                "sub_category": "web_search", # Reuses browser executor
+                "action_params": {"url": url},
+                "plain_english_plan": f"Navigating to {url}"
+            }
+
         initial_state = {
             "task": task,
             "messages": [],
-            "next_action": "",
-            "sub_category": "",
+            "next_action": fast_track_state["next_action"] if fast_track_state else "",
+            "sub_category": fast_track_state["sub_category"] if fast_track_state else "",
             "entities": [],
-            "action_params": {},
-            "plain_english_plan": "",
-            "confidence": 1.0,
+            "action_params": fast_track_state["action_params"] if fast_track_state else {},
+            "plain_english_plan": fast_track_state["plain_english_plan"] if fast_track_state else "",
+            "confidence": 1.0 if fast_track_state else 0.0,
             "needs_hitl": False,
             "plan": [],
             "result": "",
@@ -143,6 +176,7 @@ async def _run_agent_task(execution_id: str, task: str, params: dict | None = No
             "input_values": params.get("input_values") if params else None,
         }
 
+        # If fast-track found, we still run the graph but the planner will recognize the pre-filled state
         await app_graph.ainvoke(
             initial_state,
             config={"configurable": {"execution_id": execution_id}},
@@ -411,4 +445,4 @@ async def save_skills(request: Request):
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("AUTOFLOW_PORT", 8765))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host="127.0.0.1", port=port)

@@ -20,11 +20,24 @@ try:
     import winreg
 except ImportError:
     winreg = None
+import json
 from pathlib import Path
+try:
+    import win32gui
+    import win32con
+    import win32com.client
+    import pythoncom
+except ImportError:
+    win32gui = None
+    win32con = None
+    win32com = None
+    pythoncom = None
 
 import pyautogui
 
 logger = logging.getLogger("AutoOS.app_module")
+
+_CACHE_FILE = Path("server/data/apps_cache.json")
 
 _SEARCH_ROOTS = [
     Path(os.environ.get("PROGRAMFILES", r"C:\Program Files")),
@@ -45,6 +58,8 @@ async def run(task: str, entities: list[str], action_params: dict) -> str:
     logger.info("Launching app: %r aliases=%s", app_name, aliases)
 
     strategies = [
+        lambda: _try_cache(aliases),
+        lambda: _try_search_indexer(aliases),
         lambda: _try_registry(aliases),
         lambda: _try_direct_search(aliases),
         lambda: _try_shortcut_search(aliases),
@@ -63,7 +78,9 @@ async def run(task: str, entities: list[str], action_params: dict) -> str:
             logger.info("Launch succeeded via %s", result.get("method", "unknown"))
             
             if action == "interact" or input_text or action == "send_message" or "whatsapp" in app_name.lower():
-                await asyncio.sleep(2.0) # Wait for app to focus
+                await asyncio.sleep(1.5) # Reduced wait time
+                # Attempt instant focus via Win32 before interaction
+                _focus_window(app_name)
                 return await _interact_with_app(result["message"], input_text, app_name, entities, action, target)
             
             return result["message"]
@@ -72,6 +89,100 @@ async def run(task: str, entities: list[str], action_params: dict) -> str:
         f"Could not find '{app_name}' on your computer. "
         "Make sure it is installed and try again."
     )
+
+
+async def _try_cache(aliases: list[str]) -> dict:
+    if not _CACHE_FILE.exists():
+        return {"success": False}
+    try:
+        with open(_CACHE_FILE, "r") as f:
+            cache = json.load(f)
+        
+        terms = [a.lower().replace(" ", "").replace("-", "").replace("_", "") for a in aliases]
+        for term in terms:
+            if term in cache:
+                path = Path(cache[term])
+                if path.exists():
+                    if path.suffix.lower() == ".lnk":
+                        os.startfile(str(path))
+                    else:
+                        subprocess.Popen([str(path)], shell=False)
+                    return {
+                        "success": True, "method": "cache",
+                        "message": f"Launched {aliases[0]} from cache.",
+                    }
+    except Exception as exc:
+        logger.debug("Cache read error: %s", exc)
+    return {"success": False}
+
+
+def _update_cache(term: str, path: Path):
+    cache = {}
+    if _CACHE_FILE.exists():
+        try:
+            with open(_CACHE_FILE, "r") as f:
+                cache = json.load(f)
+        except: pass
+    
+    cache[term] = str(path)
+    try:
+        _CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(_CACHE_FILE, "w") as f:
+            json.dump(cache, f, indent=2)
+    except: pass
+
+
+async def _try_search_indexer(aliases: list[str]) -> dict:
+    """Query the Windows Search Indexer in a background thread."""
+    if not win32com: return {"success": False}
+    return await asyncio.to_thread(_search_indexer_sync, aliases)
+
+
+def _search_indexer_sync(aliases: list[str]) -> dict:
+    """Synchronous implementation of the indexer query."""
+    try:
+        pythoncom.CoInitialize()
+        conn = win32com.client.Dispatch("ADODB.Connection")
+        conn.Open("Provider=Search.CollatorDSO;Extended Properties='Application=Windows';")
+        rs = win32com.client.Dispatch("ADODB.Recordset")
+        
+        clean_aliases = [a.replace("'", "''") for a in aliases]
+        
+        for alias in clean_aliases:
+            query = (
+                "SELECT System.ItemPathDisplay FROM SystemIndex "
+                f"WHERE (System.ItemNameDisplay LIKE '%{alias}%' OR System.FileName LIKE '%{alias}%') "
+                "AND (System.ItemType = '.exe' OR System.ItemType = '.lnk') "
+                "ORDER BY System.Search.Rank DESC"
+            )
+            
+            try:
+                rs.Open(query, conn)
+                if not rs.EOF:
+                    path = rs.Fields.Item("System.ItemPathDisplay").Value
+                    if path and Path(path).exists():
+                        if path.lower().endswith(".lnk"):
+                            os.startfile(path)
+                        else:
+                            subprocess.Popen([path], shell=False)
+                        
+                        _update_cache(alias.lower().replace(" ", ""), Path(path))
+                        return {
+                            "success": True, "method": "indexer",
+                            "message": f"Found {aliases[0]} via Windows Search."
+                        }
+            except Exception:
+                continue
+            finally:
+                if rs.State == 1: rs.Close()
+                
+        conn.Close()
+    except Exception as exc:
+        logger.debug("Indexer search failed: %s", exc)
+    finally:
+        pythoncom.CoUninitialize()
+        
+    return {"success": False}
 
 
 async def _try_registry(aliases: list[str]) -> dict:
@@ -128,6 +239,11 @@ async def _try_direct_search(aliases: list[str]) -> dict:
     best = min(candidates, key=lambda p: len(str(p)))
     logger.debug("Direct search matched: %s", best)
     subprocess.Popen([str(best)], shell=False)
+    
+    # Cache the result
+    for term in terms:
+        _update_cache(term, best)
+
     return {
         "success": True, "method": "direct_search",
         "message": f"Launched {aliases[0]} from {best.parent.name}.",
@@ -135,27 +251,53 @@ async def _try_direct_search(aliases: list[str]) -> dict:
 
 
 async def _try_shortcut_search(aliases: list[str]) -> dict:
-    terms = [a.lower() for a in aliases]
-    shortcut_roots = [
-        Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu",
-        Path(r"C:\ProgramData\Microsoft\Windows\Start Menu"),
-        Path(os.path.expanduser("~")) / "Desktop",
-        Path(r"C:\Users\Public\Desktop"),
-    ]
-    for root in shortcut_roots:
-        if not root.exists():
-            continue
+    """Find and launch apps via .lnk files using the Indexer."""
+    return await asyncio.to_thread(_try_shortcut_indexer_sync, aliases)
+
+
+def _try_shortcut_indexer_sync(aliases: list[str]) -> dict:
+    """Synchronous implementation of shortcut indexer search."""
+    try:
+        pythoncom.CoInitialize()
+        conn = win32com.client.Dispatch("ADODB.Connection")
+        conn.Open("Provider=Search.CollatorDSO;Extended Properties='Application=Windows';")
+        rs = win32com.client.Dispatch("ADODB.Recordset")
+        
+        terms = [a.lower() for a in aliases]
+        kw_clauses = [f"System.FileName LIKE '%{t.replace(\"'\", \"''\")}%'" for t in terms]
+        
+        query = (
+            "SELECT TOP 5 System.ItemNameDisplay, System.ItemPathDisplay "
+            "FROM SystemIndex "
+            f"WHERE ({' OR '.join(kw_clauses)}) "
+            "AND System.FileExtension = '.lnk' "
+            "ORDER BY System.Search.Rank DESC"
+        )
+        
         try:
-            for lnk in root.rglob("*.lnk"):
-                stem_lower = lnk.stem.lower()
-                if any(t in stem_lower for t in terms):
-                    os.startfile(str(lnk))
-                    return {
-                        "success": True, "method": "shortcut",
-                        "message": f"Launched {aliases[0]} via shortcut.",
-                    }
-        except Exception as exc:
-            logger.debug("Shortcut search error: %s", exc)
+            rs.Open(query, conn)
+            if not rs.EOF:
+                name = rs.Fields.Item("System.ItemNameDisplay").Value
+                path = rs.Fields.Item("System.ItemPathDisplay").Value
+                
+                os.startfile(path)
+                
+                # Cache it
+                for t in terms:
+                    if t in name.lower():
+                        _update_cache(t.replace(" ", "").replace("-", "").replace("_", ""), Path(path))
+
+                return {
+                    "success": True, "method": "shortcut_indexer",
+                    "message": f"Launched {aliases[0]} via Windows Search shortcut.",
+                }
+        finally:
+            if rs.State == 1: rs.Close()
+            conn.Close()
+            
+    except Exception as exc:
+        logger.debug("Shortcut indexer search failed: %s", exc)
+        
     return {"success": False}
 
 
@@ -238,6 +380,27 @@ async def _try_start_menu_search(app_name: str) -> dict:
     except Exception as exc:
         logger.warning("Start Menu fallback failed: %s", exc)
         return {"success": False}
+
+
+def _focus_window(title_substring: str):
+    """Instant focus using Win32 API."""
+    if not win32gui: return
+    
+    def callback(hwnd, extra):
+        title = win32gui.GetWindowText(hwnd).lower()
+        if title_substring.lower() in title:
+            try:
+                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+                win32gui.SetForegroundWindow(hwnd)
+            except Exception:
+                pass
+            return False
+        return True
+    
+    try:
+        win32gui.EnumWindows(callback, None)
+    except Exception:
+        pass
 
 
 async def _interact_with_app(launch_msg: str, input_text: str, app_name: str = "", entities: list[str] = None, action: str = "", target: str = "") -> str:

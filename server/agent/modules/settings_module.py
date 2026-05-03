@@ -7,6 +7,7 @@ import os
 import asyncio
 import logging
 import subprocess
+import winreg
 
 logger = logging.getLogger("AutoOS.settings_module")
 
@@ -38,6 +39,8 @@ async def run(task: str, entities: list[str], action_params: dict) -> str:
         return await _set_power_mode(mode)
     if setting in ("night_light", "night light", "blue light"):
         return await _toggle_night_light()
+    if setting in ("transparency", "transparency_effects", "glass"):
+        return await _toggle_transparency()
     if setting in ("bluetooth", "bluetooth_devices", "wifi", "network"):
         from agent.modules import hardware_module
         action_params["device_type"] = setting
@@ -64,6 +67,8 @@ async def run(task: str, entities: list[str], action_params: dict) -> str:
         return await _set_power_mode(task_lower)
     if any(w in task_lower for w in ("night light", "blue light", "warmth")):
         return await _toggle_night_light()
+    if any(w in task_lower for w in ("transparency", "glass", "blur")):
+        return await _toggle_transparency()
     if "bluetooth" in task_lower or "wifi" in task_lower or "network" in task_lower:
         from agent.modules import hardware_module
         return await hardware_module.run(task, entities, action_params)
@@ -82,7 +87,14 @@ async def _change_text_size(direction: str) -> str:
 
 
 async def _change_brightness(direction: str) -> str:
+    """Adjust brightness in a background thread."""
+    return await asyncio.to_thread(_change_brightness_sync, direction)
+
+
+def _change_brightness_sync(direction: str) -> str:
+    """Synchronous implementation of brightness adjustment."""
     try:
+        # Get current brightness
         get_result = subprocess.run(
             [
                 "powershell", "-Command",
@@ -99,6 +111,7 @@ async def _change_brightness(direction: str) -> str:
         else:
             new_val = 70
 
+        # Set new brightness
         subprocess.run(
             [
                 "powershell", "-Command",
@@ -108,24 +121,36 @@ async def _change_brightness(direction: str) -> str:
             capture_output=True, timeout=10
         )
         return f"Screen brightness set to {new_val}%."
-    except Exception:
+    except Exception as exc:
+        logger.debug("Brightness adjustment failed: %s", exc)
         os.startfile("ms-settings:display")
         return "I opened Display Settings where you can adjust the brightness manually."
 
 
+async def _toggle_transparency() -> str:
+    try:
+        key_path = r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_ALL_ACCESS) as key:
+            current, _ = winreg.QueryValueEx(key, "EnableTransparency")
+            new_val = 0 if current == 1 else 1
+            winreg.SetValueEx(key, "EnableTransparency", 0, winreg.REG_DWORD, new_val)
+        status = "OFF" if new_val == 0 else "ON"
+        return f"Transparency effects are now {status}."
+    except Exception as exc:
+        logger.error("Registry transparency toggle failed: %s", exc)
+        os.startfile("ms-settings:personalization-colors")
+        return "I opened the Color settings where you can toggle Transparency effects."
+
+
 async def _toggle_dark_mode() -> str:
     try:
-        for value_name, value in [("AppsUseLightTheme", 0), ("SystemUsesLightTheme", 0)]:
-            subprocess.run(
-                [
-                    "reg", "add",
-                    r"HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize",
-                    "/v", value_name, "/t", "REG_DWORD", "/d", str(value), "/f"
-                ],
-                capture_output=True, timeout=10
-            )
-        return "Dark mode has been turned on. You may need to sign out and back in for all apps to update."
-    except Exception:
+        key_path = r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_WRITE) as key:
+            winreg.SetValueEx(key, "AppsUseLightTheme", 0, winreg.REG_DWORD, 0)
+            winreg.SetValueEx(key, "SystemUsesLightTheme", 0, winreg.REG_DWORD, 0)
+        return "Dark mode has been turned on. You should see the change immediately."
+    except Exception as exc:
+        logger.error("Registry dark mode toggle failed: %s", exc)
         os.startfile("ms-settings:personalization")
         return "I opened Personalization settings where you can switch to Dark mode."
 
@@ -210,11 +235,23 @@ async def _set_power_mode(mode_query: str) -> str:
 
 
 async def _toggle_night_light() -> str:
+    """Check status via Registry and toggle via URI (Binary blob writing is unstable)."""
     try:
+        # Night light state is buried in a binary blob in CloudStore
+        key_path = r"Software\Microsoft\Windows\CurrentVersion\CloudStore\Store\DefaultNetworkCloud\default$windows.data.bluelightreduction.settings\data"
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path) as key:
+            data, _ = winreg.QueryValueEx(key, "Data")
+            # Usually the 18th byte indicates if it's on/off in the current blob format
+            # This is a heuristic but works on most Windows 10/11 builds
+            is_on = data[18] == 0x15 if len(data) > 18 else False
+            
+        status = "ON" if is_on else "OFF"
+        os.startfile("ms-settings:nightlight")
+        return f"Night Light is currently {status}. I've opened the settings for you to toggle it or change the schedule."
+    except Exception as exc:
+        logger.error("Night Light registry check failed: %s", exc)
         os.startfile("ms-settings:nightlight")
         return "I opened the Night Light settings for you."
-    except Exception as exc:
-        return f"Could not open Night Light settings: {exc}"
 
 
 async def _open_settings_generic() -> str:

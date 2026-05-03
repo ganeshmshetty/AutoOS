@@ -134,6 +134,7 @@ async def _run_agent_task(execution_id: str, task: str, params: dict | None = No
             "needs_hitl": False,
             "plan": [],
             "result": "",
+            "context": {},
             "headless": params.get("headless") if params else None,
             "max_steps": params.get("max_steps") if params else None,
             "input_values": params.get("input_values") if params else None,

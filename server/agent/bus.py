@@ -17,6 +17,14 @@ class ConnectionManager:
         if execution_id in self.active_connections:
             await self.active_connections[execution_id].send_json(message)
 
+    async def broadcast(self, message: dict):
+        """Send a message to ALL connected WebSocket clients."""
+        for ws in list(self.active_connections.values()):
+            try:
+                await ws.send_json(message)
+            except Exception:
+                pass
+
 manager = ConnectionManager()
 
 async def emit_event(config: dict, event: dict):
